@@ -1,14 +1,18 @@
 #!/bin/bash
 
 function usage {
-	echo "Usage: tpcds-setup.sh --scale <scale_factor> [--dir <temp_directory>] [--no-part] [--external] [--format <serde_format>]"
+	echo "Usage: tpcds-setup.sh --scale <scale_factor> [options]"
 	echo ""
 	echo "Options:"
 	echo "  --scale       Scale factor in GB (required)"
 	echo "  --dir         HDFS directory containing generated data (default: /tmp/tpcds-generate)"
 	echo "  --no-part     Create non-partitioned tables"
-	echo "  --external    Create external tables instead of managed"
-	echo "  --format      Table format: orc, parquet, rcfile (default: orc)"
+	echo "  --format      Table format: orc, parquet (default: orc)"
+	echo ""
+	echo "Table Type (mutually exclusive, default: --external):"
+	echo "  --external    Create external tables (default)"
+	echo "  --iceberg     Create Iceberg tables (STORED BY ICEBERG)"
+	echo "  --acid        Create managed ACID tables"
 	echo ""
 	echo "Prerequisites:"
 	echo "  1. Run tpcds-build.sh to build the data generator"
@@ -41,7 +45,7 @@ FACTS="store_sales store_returns web_sales web_returns catalog_sales catalog_ret
 
 # Defaults
 STRATEGY="partitioned"
-TYPE="managed"
+TYPE="external"
 FORMAT="orc"
 
 while [[ $# -gt 0 ]]; do
@@ -67,6 +71,14 @@ while [[ $# -gt 0 ]]; do
     --external)
       shift
       TYPE="external"
+      ;;
+    --iceberg)
+      shift
+      TYPE="iceberg"
+      ;;
+    --acid)
+      shift
+      TYPE="acid"
       ;;
     --format)
       shift
@@ -108,10 +120,32 @@ if [ $SCALE -eq 1 ]; then
 	exit 1
 fi
 
+# Set LEGACY flag based on table type
+# External tables need legacy mode for CTAS
 if [ "$TYPE" = "external" ]; then
   LEGACY="true"
-else
+elif [ "$TYPE" = "iceberg" ]; then
   LEGACY="false"
+else
+  # acid (managed)
+  LEGACY="false"
+fi
+
+# Determine DDL directory based on type and strategy
+if [ "$TYPE" = "iceberg" ]; then
+  DDL_DIR="iceberg_${STRATEGY}"
+else
+  DDL_DIR="bin_${STRATEGY}"
+fi
+
+# Check if DDL directory exists
+if [ ! -d "ddl-tpcds/${DDL_DIR}" ]; then
+	echo ""
+	echo "ERROR: DDL directory not found: ddl-tpcds/${DDL_DIR}"
+	echo ""
+	echo "This table type/strategy combination may not be supported yet."
+	echo ""
+	exit 1
 fi
 
 # Verify HDFS connectivity first
@@ -237,7 +271,7 @@ echo "Pre-flight checks passed. Starting table optimization..."
 echo ""
 
 LOAD_FILE="load_${STRATEGY}_${TYPE}_${FORMAT}_${SCALE}.mk"
-SILENCE="2> /dev/null 1> /dev/null" 
+SILENCE="2> /dev/null 1> /dev/null"
 if [ "X$DEBUG_SCRIPT" != "X" ]; then
 	SILENCE=""
 fi
@@ -247,24 +281,24 @@ echo -e "all: ${DIMS} ${FACTS}" > $LOAD_FILE
 i=1
 total=24
 
-DATABASE=tpcds_bin_${STRATEGY}_${TYPE}_${FORMAT}_${SCALE}
-DDL_DIR=bin_${STRATEGY}
+DATABASE=tpcds_${STRATEGY}_${TYPE}_${FORMAT}_${SCALE}
 
 echo -e "Running with... "
 echo -e "      Database: ${DATABASE}"
 echo -e "      Strategy: ${STRATEGY}"
 echo -e "      Type:     ${TYPE}"
-echo -e "      FORMAT:   ${FORMAT}"
-echo -e "      SCALE:    ${SCALE}"
+echo -e "      Format:   ${FORMAT}"
+echo -e "      DDL Dir:  ${DDL_DIR}"
+echo -e "      Scale:    ${SCALE}"
 
 #DATABASE=tpcds_bin_partitioned_${FORMAT}_${SCALE}
-MAX_REDUCERS=2500 # maximum number of useful reducers for any scale 
+MAX_REDUCERS=2500 # maximum number of useful reducers for any scale
 REDUCERS=$((test ${SCALE} -gt ${MAX_REDUCERS} && echo ${MAX_REDUCERS}) || echo ${SCALE})
 
 # Populate the smaller tables.
 for t in ${DIMS}
 do
-	COMMAND="$HIVE -i settings/load-partitioned.sql -f ddl-tpcds/bin_${STRATEGY}/${t}.sql \
+	COMMAND="$HIVE -i settings/load-partitioned.sql -f ddl-tpcds/${DDL_DIR}/${t}.sql \
 	    --hivevar DB=${DATABASE} --hivevar SOURCE=tpcds_text_${SCALE} \
       --hivevar SCALE=${SCALE} --hivevar LEGACY=${LEGACY} \
 	    --hivevar REDUCERS=${REDUCERS} \
@@ -275,7 +309,7 @@ done
 
 for t in ${FACTS}
 do
-	COMMAND="$HIVE -i settings/load-partitioned.sql -f ddl-tpcds/bin_${STRATEGY}/${t}.sql \
+	COMMAND="$HIVE -i settings/load-partitioned.sql -f ddl-tpcds/${DDL_DIR}/${t}.sql \
 	    --hivevar DB=${DATABASE} \
       --hivevar SCALE=${SCALE} --hivevar LEGACY=${LEGACY} \
 	    --hivevar SOURCE=tpcds_text_${SCALE} --hivevar BUCKETS=${BUCKETS} \
@@ -298,6 +332,9 @@ if [ $MAKE_EXIT -ne 0 ]; then
 	echo "  - Ranger/permission issues (see below)"
 	echo "  - Source text tables missing or incomplete"
 	echo "  - Hive metastore connectivity issues"
+	if [ "$TYPE" = "iceberg" ]; then
+		echo "  - Iceberg not enabled in Hive (check iceberg catalog configuration)"
+	fi
 	echo ""
 	echo "RANGER PERMISSIONS NOTE:"
 	echo "  If you see 'Permission denied' or 'HiveAccessControlException' errors,"
@@ -315,7 +352,10 @@ if [ $MAKE_EXIT -ne 0 ]; then
 	exit 1
 fi
 
-echo "Loading constraints"
-runcommand "$HIVE -f ddl-tpcds/bin_${STRATEGY}/add_constraints.sql --hivevar DB=${DATABASE}"
+# Only add constraints for non-iceberg tables (Iceberg has its own constraint handling)
+if [ "$TYPE" != "iceberg" ]; then
+	echo "Loading constraints"
+	runcommand "$HIVE -f ddl-tpcds/${DDL_DIR}/add_constraints.sql --hivevar DB=${DATABASE}"
+fi
 
 echo "Data loaded into database ${DATABASE}."

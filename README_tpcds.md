@@ -45,13 +45,13 @@ Quick Start
 # 2. Generate raw TPC-DS data (creates text tables)
 ./tpcds-gen.sh --scale 100 --dir /tmp/tpcds-generate
 
-# 3. Create optimized tables from the generated data
+# 3. Create optimized tables from the generated data (default: external ORC tables)
 ./tpcds-setup.sh --scale 100 --dir /tmp/tpcds-generate
 
 # 4. Run queries
 cd sample-queries-tpcds
 hive -i testbench.settings
-hive> use tpcds_bin_partitioned_managed_orc_100;
+hive> use tpcds_partitioned_external_orc_100;
 hive> source query55.sql;
 ```
 
@@ -122,33 +122,47 @@ java -jar tpcds-gen-java/target/tpcds-gen-java-1.0-SNAPSHOT.jar \
 | `--scale` | Scale factor (must match generation) | - |
 | `--dir` | HDFS directory with generated data | `/tmp/tpcds-generate` |
 | `--no-part` | Create non-partitioned tables | (partitioned) |
-| `--external` | Create external tables | (managed) |
-| `--format` | Table format: orc, parquet, rcfile | `orc` |
+| `--format` | Table format: orc, parquet | `orc` |
+
+**Table Type (mutually exclusive):**
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--external` | Create external Hive tables | **Yes (default)** |
+| `--iceberg` | Create Iceberg tables (STORED BY ICEBERG) | No |
+| `--acid` | Create managed ACID tables | No |
 
 **Examples:**
 ```bash
-# Create managed, partitioned ORC tables (default)
+# Create external, partitioned ORC tables (default)
 ./tpcds-setup.sh --scale 100 --dir /tmp/tpcds-generate
 
-# Create external, partitioned ORC tables
-./tpcds-setup.sh --scale 100 --dir /tmp/tpcds-generate --external
+# Create Iceberg tables with partitioning
+./tpcds-setup.sh --scale 100 --dir /tmp/tpcds-generate --iceberg
 
-# Create non-partitioned Parquet tables
+# Create non-partitioned Iceberg tables
+./tpcds-setup.sh --scale 100 --dir /tmp/tpcds-generate --iceberg --no-part
+
+# Create managed ACID tables
+./tpcds-setup.sh --scale 100 --dir /tmp/tpcds-generate --acid
+
+# Create non-partitioned Parquet external tables
 ./tpcds-setup.sh --scale 100 --dir /tmp/tpcds-generate --no-part --format parquet
 ```
 
 **What happens:**
 1. Validates the source text tables exist
-2. Creates optimized binary tables using CTAS (CREATE TABLE AS SELECT)
+2. Creates optimized tables using CTAS (CREATE TABLE AS SELECT)
 3. Applies partitioning for fact tables (unless `--no-part`)
-4. Creates database with naming pattern: `tpcds_bin_<strategy>_<type>_<format>_<scale>`
+4. For Iceberg tables, uses `STORED BY ICEBERG` and `PARTITIONED BY SPEC`
+5. Creates database with naming pattern: `tpcds_<strategy>_<type>_<format>_<scale>`
 
 **Database naming examples:**
 ```
-tpcds_bin_partitioned_managed_orc_100
-tpcds_bin_partitioned_external_orc_100
-tpcds_bin_not_partitioned_managed_orc_100
-tpcds_bin_not_partitioned_external_parquet_100
+tpcds_partitioned_external_orc_100       # External ORC (default)
+tpcds_partitioned_iceberg_orc_100        # Iceberg with partitioning
+tpcds_not_partitioned_iceberg_parquet_100  # Iceberg without partitioning
+tpcds_partitioned_acid_orc_100           # Managed ACID tables
+tpcds_not_partitioned_external_parquet_100  # External Parquet
 ```
 
 ## Step 4: Create All Table Variants (Optional)
@@ -157,11 +171,11 @@ tpcds_bin_not_partitioned_external_parquet_100
 ./tpcds-setup-all.sh --scale <scale_factor> --dir <hdfs_directory>
 ```
 
-This creates all four database variants for performance comparison:
-- `tpcds_bin_partitioned_managed_orc_<scale>`
-- `tpcds_bin_partitioned_external_orc_<scale>`
-- `tpcds_bin_not_partitioned_managed_orc_<scale>`
-- `tpcds_bin_not_partitioned_external_orc_<scale>`
+This creates multiple database variants for performance comparison:
+- `tpcds_partitioned_external_orc_<scale>` (External, partitioned)
+- `tpcds_not_partitioned_external_orc_<scale>` (External, not partitioned)
+- `tpcds_partitioned_iceberg_orc_<scale>` (Iceberg, partitioned)
+- `tpcds_not_partitioned_iceberg_orc_<scale>` (Iceberg, not partitioned)
 
 ## Step 5: Run Queries
 
@@ -171,7 +185,7 @@ hive -i testbench.settings
 ```
 
 ```sql
-USE tpcds_bin_partitioned_managed_orc_100;
+USE tpcds_partitioned_external_orc_100;
 source query55.sql;
 ```
 
