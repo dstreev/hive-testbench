@@ -71,6 +71,10 @@ tpcds_not_partitioned_external_parquet_100  # External Parquet without partition
 Prerequisites
 =============
 
+It is recommended to use a cluster 'edge' node for this process to ensure all dependencies are available.  If the cluster is kerberized, ensure you have a valid Kerberos ticket before running the testbench.
+
+There are various permission requirements for this testbench.  The default location for generated data is `/tmp/tpcds-generate`.  The user AND the 'hive' service user must have read/write/execute permissions for this directory.  If they don't, you will see errors like this when running the test bench hive sql files: [user] doesn't have execute permission on /tmp/tpcds-generate/date_dim.
+
 You will need:
 * CDP 7.1.4+ or later cluster (7.1.4 required to support legacy CREATE for EXTERNAL tables)
 * Apache Hive accessible via `beeline|hive` CLI
@@ -172,12 +176,14 @@ java -jar tpcds-gen-java/target/tpcds-gen-java-1.0-SNAPSHOT.jar \
 ```
 
 **General Options:**
+
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--scale` | Scale factor (must match generation) | - |
 | `--dir` | HDFS directory with generated data | `/tmp/tpcds-generate` |
 
 **Table Type (mutually exclusive):**
+
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--external` | Create external Hive tables | **Yes (default)** |
@@ -185,6 +191,7 @@ java -jar tpcds-gen-java/target/tpcds-gen-java-1.0-SNAPSHOT.jar \
 | `--acid` | Create managed ACID tables | No |
 
 **Format and Partitioning:**
+
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--format` | File format: `orc`, `parquet` | `orc` |
@@ -325,34 +332,6 @@ DEBUG_SCRIPT=1 ./tpcds-gen.sh --scale 100
 DEBUG_SCRIPT=1 ./tpcds-setup.sh --scale 100
 ```
 
-Performance Testing
-===================
-
-After generating data, you can run performance comparisons across different table designs.
-
-## Using time.sh
-
-Run all TPC-DS queries against a specific database:
-```bash
-cd sample-queries-tpcds
-./time.sh --db tpcds_partitioned_external_orc_100
-```
-
-## Using time_again.sh
-
-Iterate over all 4 database variants multiple times:
-```bash
-./time_again.sh --scale 100 --iterations 3 --dir /local/results
-```
-
-This helps compare performance across:
-- External vs Iceberg tables
-- Partitioned vs Non-partitioned tables
-
-## Analyzing Results
-
-Output from `time_again.sh` can be loaded into HDFS and analyzed using queries in the `evaluate/` directory.
-
 Scale Factor Guidelines
 =======================
 
@@ -371,4 +350,3 @@ Feedback
 
 If you have questions, comments or problems, [contact me](mailto:dstreever@cloudera.com).
 
-If you have improvements, pull requests are accepted.
