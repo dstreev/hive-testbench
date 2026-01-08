@@ -5,3 +5,4 @@ tpch_kit.zip
 derby.log
 *.iml
 .idea
+dependency-reduced-pom.xml
