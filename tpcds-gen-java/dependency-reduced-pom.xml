@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <parent>
+    <artifactId>hive-testbench</artifactId>
+    <groupId>com.streever.utils</groupId>
+    <version>1.0-SNAPSHOT</version>
+  </parent>
   <modelVersion>4.0.0</modelVersion>
-  <groupId>org.tpcds</groupId>
   <artifactId>tpcds-gen-java</artifactId>
   <name>TPC-DS Data Generator (Java)</name>
-  <version>1.0-SNAPSHOT</version>
   <description>Java port of the TPC-DS data generator (dsdgen)</description>
   <build>
     <resources>
@@ -21,22 +24,19 @@
     <plugins>
       <plugin>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.11.0</version>
       </plugin>
       <plugin>
         <artifactId>maven-jar-plugin</artifactId>
-        <version>3.3.0</version>
         <configuration>
           <archive>
             <manifest>
-              <mainClass>org.tpcds.DsGen</mainClass>
+              <mainClass>com.streever.utils.hive.testbench.tpcds.DsGen</mainClass>
             </manifest>
           </archive>
         </configuration>
       </plugin>
       <plugin>
         <artifactId>maven-shade-plugin</artifactId>
-        <version>3.5.1</version>
         <executions>
           <execution>
             <phase>package</phase>
@@ -46,7 +46,7 @@
             <configuration>
               <transformers>
                 <transformer>
-                  <mainClass>org.tpcds.DsGen</mainClass>
+                  <mainClass>com.streever.utils.hive.testbench.tpcds.DsGen</mainClass>
                 </transformer>
                 <transformer />
               </transformers>
@@ -100,10 +100,4 @@
       </exclusions>
     </dependency>
   </dependencies>
-  <properties>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.target>11</maven.compiler.target>
-    <maven.compiler.source>11</maven.compiler.source>
-    <hadoop.version>3.3.6</hadoop.version>
-  </properties>
 </project>
