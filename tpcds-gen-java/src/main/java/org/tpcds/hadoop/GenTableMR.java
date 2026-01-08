@@ -192,6 +192,7 @@ public class GenTableMR extends Configured implements Tool {
                 distStream.close();
 
                 RandomNumberGenerator rng = new RandomNumberGenerator();
+                distMgr.setRng(rng);
 
                 // Create table generator and generate data
                 TableId[] tablesToGenerate;
