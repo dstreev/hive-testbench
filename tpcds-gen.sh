@@ -239,6 +239,10 @@ else
 			echo ""
 			echo "You can also try with fewer parallel streams:"
 			echo "  ./tpcds-gen.sh --scale ${SCALE} --dir ${DIR} --parallel $((PARALLEL/2))"
+			echo ""
+			echo "--- Raw error output ---"
+			echo "$MR_OUTPUT"
+			echo "--- End of error output ---"
 		fi
 		echo ""
 		exit 1
