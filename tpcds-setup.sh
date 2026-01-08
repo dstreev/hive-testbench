@@ -262,7 +262,20 @@ do
 done
 
 make -j 1 -f $LOAD_FILE
+MAKE_EXIT=$?
 
+if [ $MAKE_EXIT -ne 0 ]; then
+	echo ""
+	echo "ERROR: Table optimization failed with exit code $MAKE_EXIT"
+	echo ""
+	echo "To see detailed errors, re-run with DEBUG_SCRIPT=1:"
+	echo "  DEBUG_SCRIPT=1 ./tpcds-setup.sh --scale ${SCALE} --dir ${DIR}"
+	echo ""
+	echo "The generated makefile is: $LOAD_FILE"
+	echo "You can inspect it and run individual table commands manually."
+	echo ""
+	exit 1
+fi
 
 echo "Loading constraints"
 runcommand "$HIVE -f ddl-tpcds/bin_${STRATEGY}/add_constraints.sql --hivevar DB=${DATABASE}"
