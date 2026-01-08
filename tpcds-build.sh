@@ -50,21 +50,22 @@ fi
 
 cd ..
 
-# Copy the tpcds.idx distribution file into the JAR's resources if available
-if [ -f "tpcds-gen/target/tools/tpcds.idx" ]; then
-	echo "Found tpcds.idx distribution file"
-	# The distribution file is packaged separately and passed at runtime
+# Verify tpcds.idx distribution file exists
+if [ ! -f "tpcds-gen-java/tpcds-tools/tpcds.idx" ]; then
+	echo "Warning: tpcds.idx distribution file not found at tpcds-gen-java/tpcds-tools/tpcds.idx"
+	exit 1
 fi
 
 echo ""
 echo "TPC-DS Data Generator built successfully!"
 echo ""
 echo "JAR location: tpcds-gen-java/target/tpcds-gen-java-1.0-SNAPSHOT.jar"
+echo "Distributions: tpcds-gen-java/tpcds-tools/tpcds.idx"
 echo ""
 echo "Usage examples:"
 echo "  Local generation:"
 echo "    java -jar tpcds-gen-java/target/tpcds-gen-java-1.0-SNAPSHOT.jar \\"
-echo "      -s <scale> -d <output_dir> --distributions <path/to/tpcds.idx>"
+echo "      -s <scale> -d <output_dir> --distributions tpcds-gen-java/tpcds-tools/tpcds.idx"
 echo ""
 echo "  Hadoop distributed generation:"
 echo "    hadoop jar tpcds-gen-java/target/tpcds-gen-java-1.0-SNAPSHOT.jar \\"

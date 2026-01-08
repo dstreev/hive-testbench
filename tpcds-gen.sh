@@ -9,7 +9,7 @@ function usage {
 	echo "Options:"
 	echo "  --scale, -s       Scale factor in GB (required)"
 	echo "  --dir, -d         HDFS output directory (default: /tmp/tpcds-generate)"
-	echo "  --distributions   Path to tpcds.idx file (default: tpcds-gen/target/tools/tpcds.idx)"
+	echo "  --distributions   Path to tpcds.idx file (default: tpcds-gen-java/tpcds-tools/tpcds.idx)"
 	echo "  --parallel, -p    Number of parallel mappers (default: scale factor)"
 	echo ""
 	exit 1
@@ -44,7 +44,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Default distributions file
-DISTRIBUTIONS="tpcds-gen/target/tools/tpcds.idx"
+DISTRIBUTIONS="tpcds-gen-java/tpcds-tools/tpcds.idx"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
