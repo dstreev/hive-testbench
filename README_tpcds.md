@@ -1,110 +1,374 @@
-hive-testbench (TPCDS)
+hive-testbench (TPC-DS) with Iceberg Support!!!
 ==============
 
-A testbench for experimenting with Apache Hive at any data scale.
+A testbench for experimenting with Apache Hive at any data scale using the TPC-DS benchmark.
+
+**Note:** This is a fork of the original [hive-testbench](https://github.com/hortonworks/hive-testbench) with TPC-DS support.
 
 Overview
 ========
 
 The hive-testbench is a data generator and set of queries that lets you experiment with Apache Hive at scale. The testbench allows you to experience base Hive performance on large datasets, and gives an easy way to see the impact of Hive tuning parameters and advanced settings.
 
+This implementation uses a **pure Java TPC-DS data generator** that:
+- Requires no native compilation (gcc not needed)
+- Runs as a Hadoop MapReduce job for distributed data generation
+- Produces TPC-DS compliant data at any scale factor
+
+Table Creation Options
+======================
+
+This testbench supports multiple table formats and configurations, allowing you to benchmark and compare different storage strategies.
+
+## Table Types
+
+| Type | Option | Description |
+|------|--------|-------------|
+| **External** | `--external` (default) | Standard Hive external tables. Data persists independently of table metadata. Best for data sharing and flexibility. |
+| **Iceberg** | `--iceberg` | Apache Iceberg tables with `STORED BY ICEBERG`. Provides ACID transactions, time travel, schema evolution, and partition evolution. |
+| **ACID** | `--acid` | Managed ACID tables with full transactional support. Data is managed by Hive and deleted when table is dropped. |
+
+## File Formats
+
+| Format | Option | Description |
+|--------|--------|-------------|
+| **ORC** | `--format orc` (default) | Optimized Row Columnar format. Best compression and performance for Hive workloads. |
+| **Parquet** | `--format parquet` | Apache Parquet format. Good interoperability with Spark, Impala, and other tools. |
+
+## Partitioning Strategies
+
+| Strategy | Option | Description |
+|----------|--------|-------------|
+| **Partitioned** | (default) | Fact tables partitioned by date columns for query optimization. |
+| **Non-partitioned** | `--no-part` | All tables without partitioning. Simpler but may have slower query performance. |
+
+## Comparison Matrix
+
+| Configuration | Use Case | Pros | Cons |
+|---------------|----------|------|------|
+| External + ORC + Partitioned | General benchmarking | Fast queries, flexible data management | Manual partition management |
+| External + Parquet + Partitioned | Multi-tool environments | Spark/Impala compatibility | Slightly larger files than ORC |
+| Iceberg + ORC + Partitioned | Modern data lakehouse | ACID, time travel, schema evolution | Requires Iceberg-aware tools |
+| Iceberg + ORC + Non-partitioned | Simple Iceberg testing | Easy setup, hidden partitioning available | May need partition evolution later |
+| ACID + ORC + Partitioned | Transactional workloads | Full ACID, compaction | Higher overhead, Hive-only |
+
+## Database Naming Convention
+
+Databases are named following this pattern:
+```
+tpcds_<partitioning>_<type>_<format>_<scale>
+```
+
+Examples:
+```
+tpcds_partitioned_external_orc_100       # External ORC with partitioning (default)
+tpcds_partitioned_iceberg_orc_100        # Iceberg ORC with partitioning
+tpcds_not_partitioned_iceberg_orc_100    # Iceberg ORC without partitioning
+tpcds_partitioned_acid_orc_100           # Managed ACID ORC with partitioning
+tpcds_not_partitioned_external_parquet_100  # External Parquet without partitioning
+```
+
 Prerequisites
 =============
 
 You will need:
-* CDP 7.1.4+ or later cluster or Sandbox. (7.1.4 required to support legacy CREATE for EXTERNAL tables)
-* Apache Hive.
-* Between 15 minutes and 2 days to generate data (depending on the Scale Factor you choose and available hardware).
-* If you plan to generate 1TB or more of data, using Apache Hive 13+ to generate the data is STRONGLY suggested.
+* CDP 7.1.4+ or later cluster (7.1.4 required to support legacy CREATE for EXTERNAL tables)
+* Apache Hive accessible via `beeline|hive` CLI
+* Hadoop/HDFS accessible via `hadoop` and `hdfs` CLI commands
+* Java 11+ (for building and running the data generator)
+* Maven (will be auto-downloaded if not present)
+* MapReduce Framework jars deployed to HDFS (for distributed data generation)
 
-Install and Setup
-=================
+**Important - MapReduce Framework Setup:**
 
-All of these steps should be carried out on your Hadoop cluster.
+The TPC-DS data generator uses MapReduce for distributed data generation. You must ensure the MapReduce framework jars are deployed to HDFS before running the generator:
 
-- Step 1: Prepare your environment.
+In Cloudera Manager: **YARN > Actions > Install YARN MapReduce Framework Jars**
 
-  In addition to Hadoop and Hive, before you begin ensure ```gcc``` is installed and available on your system path. If you system does not have it, install it using yum or apt-get.
+If this step is skipped, you will see an error like:
+```
+java.io.FileNotFoundException: File does not exist: hdfs://.../mr-framework.tar.gz
+```
 
-- Step 2: Decide which test suite(s) you want to use.
+Quick Start
+===========
 
-  hive-testbench comes with data generators and sample queries based on both the TPC-DS and TPC-H benchmarks. You can choose to use either or both of these benchmarks for experiementation. More information about these benchmarks can be found at the Transaction Processing Council homepage.
+```bash
+# 1. Build the data generator
+./tpcds-build.sh
 
-- Step 3: Compile and package the appropriate data generator.
+# 2. Generate raw TPC-DS data (creates text tables)
+./tpcds-gen.sh --scale 100 --dir /tmp/tpcds-generate
 
-  For TPC-DS, ```./tpcds-build.sh``` downloads, compiles and packages the TPC-DS data generator.
-  For TPC-H, ```./tpch-build.sh``` downloads, compiles and packages the TPC-H data generator.
+# 3. Create optimized tables from the generated data (default: external ORC tables)
+./tpcds-setup.sh --scale 100 --dir /tmp/tpcds-generate
 
-- Step 4: Decide how much data you want to generate OR [Performance Testing](#performance-testing)
+# 4. Run queries
+cd sample-queries-tpcds
+hive -i testbench.settings
+hive> use tpcds_partitioned_external_orc_100;
+hive> source query55.sql;
+```
 
-  You need to decide on a "Scale Factor" which represents how much data you will generate. Scale Factor roughly translates to gigabytes, so a Scale Factor of 100 is about 100 gigabytes and one terabyte is Scale Factor 1000. Decide how much data you want and keep it in mind for the next step. If you have a cluster of 4-10 nodes or just want to experiment at a smaller scale, scale 1000 (1 TB) of data is a good starting point. If you have a large cluster, you may want to choose Scale 10000 (10 TB) or more. The notion of scale factor is similar between TPC-DS and TPC-H.
+Detailed Installation Steps
+===========================
 
-  If you want to generate a large amount of data, you should use Hive 13 or later. Hive 13 introduced an optimization that allows far more scalable data partitioning. Hive 12 and lower will likely crash if you generate more than a few hundred GB of data and tuning around the problem is difficult. You can generate text or RCFile data in Hive 13 and use it in multiple versions of Hive.
+## Step 1: Build the Data Generator
 
-- Step 5: Generate and load the data.
+```bash
+./tpcds-build.sh
+```
 
-  The scripts ```tpcds-setup.sh``` generate and load data for TPC-DS, respectively. General usage is ```tpcds-setup.sh --scale <scale_factor> [--dir <directory>] [--no-part] [--external] [--format <format>]```
+This compiles and packages the pure Java TPC-DS data generator. The build:
+- Cleans any previous build artifacts
+- Compiles the Java source code
+- Creates an uber JAR with all dependencies
+- Verifies the JAR and distribution files are in place
 
-  `--scale` The size in GB of the text data used to build the tpcds dataset, required.
-  `--dir` The directory on hdfs where the data is written, optional.  (default: /tmp/tpcds-generate-<scale>)
-  `--no-part` Generate the final tables with no partitions, optional.  When not set, datasets with partitions are created.
-  `--external` Generate the final tables as external, optional.  When not set, managed tables are created.
-  `--format` Generate the final tables in this hive format (default: orc)
+Output: `tpcds-gen-java/target/tpcds-gen-java-1.0-SNAPSHOT.jar`
 
-  Some examples:
+## Step 2: Generate Raw Data
 
-  Build 1 TB of TPC-DS data: ```./tpcds-setup.sh --scale 1000``` will build a 1Tb dataset that's transformed into 'managed', 'orc', and 'partitioned' tables.
+```bash
+./tpcds-gen.sh --scale <scale_factor> [options]
+```
 
-  Build 100 TB of TPC-DS data: ```./tpcds-setup.sh --scale 100000``` will build a 100Tb dataset that's transformed into 'managed', 'orc', and 'partitioned' tables.
+**Options:**
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--scale, -s` | Scale factor in GB (required) | - |
+| `--dir, -d` | HDFS output directory | `/tmp/tpcds-generate` |
+| `--parallel, -p` | Number of parallel mappers | Same as scale |
+| `--distributions` | Path to tpcds.idx file | `tpcds-gen-java/tpcds-tools/tpcds.idx` |
 
-  Build 30 TB of RCFile formatted TPC-DS data: ```./tpcds-setup --scale 30000 --format rcfile``` will build a 30Tb dataset that's transformed into 'managed', 'rcfile', and 'partitioned' tables.
+**Examples:**
+```bash
+# Generate 100GB of data
+./tpcds-gen.sh --scale 100
 
-- Step 6: Run queries.
+# Generate 1TB of data to a specific directory
+./tpcds-gen.sh --scale 1000 --dir /data/tpcds
 
-  More than 99 sample TPC-DS queries are included for you to try. You can use ```hive```, ```beeline``` or the SQL tool of your choice. The testbench also includes a set of suggested settings.
+# Generate 10TB with custom parallelism
+./tpcds-gen.sh --scale 10000 --parallel 500
+```
 
-  This example assumes you have generated 1 TB of TPC-DS data during Step 5:
+**What happens:**
+1. Validates HDFS connectivity and permissions
+2. Launches a MapReduce job to generate TPC-DS data in parallel
+3. Creates external Hive text tables pointing to the generated data
+4. Creates database `tpcds_text_<scale>` with 24 tables
 
-  	```
-  	cd sample-queries-tpcds
-  	hive -i testbench.settings
-  	hive> use tpcds_bin_partitioned_orc_1000;
-  	hive> !run query55.sql;
-  	```
-  The final databases are named based on the input parameters.  Here are a few examples:
-  ```
-  tpcds_bin_partitioned_managed_orc_100
-  tpcds_bin_partitioned_external_orc_100
-  tpcds_bin_not_partitioned_managed_orc_100
-  tpcds_bin_not_partitioned_external_orc_100
-  ```
+**Note:** Scale factor must be greater than 1 for distributed generation. For scale=1, use the JAR directly:
+```bash
+java -jar tpcds-gen-java/target/tpcds-gen-java-1.0-SNAPSHOT.jar \
+  -s 1 -d /local/output --distributions tpcds-gen-java/tpcds-tools/tpcds.idx
+```
 
-  You can use `./tpcds-setup-all.sh` to buildout these four databases based on 'orc', 'managed vs. external', and 'partitioned vs. not partitioned'.
- 
-  Note that the database is name is postfixed with the Data Scale chosen in step 3. At Data Scale 10000, your database will be named tpcds_bin_<partitioned_managed_orc>_10000. You can always ```show databases``` to get a list of available databases.
+## Step 3: Create Optimized Tables
+
+```bash
+./tpcds-setup.sh --scale <scale_factor> [options]
+```
+
+**General Options:**
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--scale` | Scale factor (must match generation) | - |
+| `--dir` | HDFS directory with generated data | `/tmp/tpcds-generate` |
+
+**Table Type (mutually exclusive):**
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--external` | Create external Hive tables | **Yes (default)** |
+| `--iceberg` | Create Iceberg tables (STORED BY ICEBERG) | No |
+| `--acid` | Create managed ACID tables | No |
+
+**Format and Partitioning:**
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--format` | File format: `orc`, `parquet` | `orc` |
+| `--no-part` | Create non-partitioned tables | (partitioned) |
+
+**Examples:**
+```bash
+# Create external, partitioned ORC tables (default)
+./tpcds-setup.sh --scale 100 --dir /tmp/tpcds-generate
+
+# Create Iceberg tables with partitioning
+./tpcds-setup.sh --scale 100 --dir /tmp/tpcds-generate --iceberg
+
+# Create non-partitioned Iceberg tables
+./tpcds-setup.sh --scale 100 --dir /tmp/tpcds-generate --iceberg --no-part
+
+# Create Iceberg tables with Parquet format
+./tpcds-setup.sh --scale 100 --dir /tmp/tpcds-generate --iceberg --format parquet
+
+# Create managed ACID tables
+./tpcds-setup.sh --scale 100 --dir /tmp/tpcds-generate --acid
+
+# Create non-partitioned Parquet external tables
+./tpcds-setup.sh --scale 100 --dir /tmp/tpcds-generate --no-part --format parquet
+```
+
+**What happens:**
+1. Validates the source text tables exist
+2. Creates optimized tables using CTAS (CREATE TABLE AS SELECT)
+3. Applies partitioning for fact tables (unless `--no-part`)
+4. For Iceberg tables, uses `STORED BY ICEBERG` and `PARTITIONED BY SPEC`
+5. Creates database with naming pattern: `tpcds_<strategy>_<type>_<format>_<scale>`
+
+## Step 4: Create All Table Variants (Optional)
+
+```bash
+./tpcds-setup-all.sh --scale <scale_factor> --dir <hdfs_directory>
+```
+
+This creates multiple database variants for performance comparison:
+- `tpcds_partitioned_external_orc_<scale>` (External, partitioned)
+- `tpcds_not_partitioned_external_orc_<scale>` (External, not partitioned)
+- `tpcds_partitioned_iceberg_orc_<scale>` (Iceberg, partitioned)
+- `tpcds_not_partitioned_iceberg_orc_<scale>` (Iceberg, not partitioned)
+
+## Step 5: Run Queries
+
+```bash
+cd sample-queries-tpcds
+hive -i testbench.settings
+```
+
+```sql
+USE tpcds_partitioned_external_orc_100;
+source query55.sql;
+```
+
+More than 99 TPC-DS queries are included in `sample-queries-tpcds/`.
+
+Iceberg Tables
+==============
+
+When using `--iceberg`, tables are created with Apache Iceberg format which provides:
+
+- **ACID Transactions**: Full transactional support with snapshot isolation
+- **Time Travel**: Query historical versions of your data
+- **Schema Evolution**: Add, drop, rename, or reorder columns without rewriting data
+- **Partition Evolution**: Change partitioning strategy without data migration
+- **Hidden Partitioning**: Partition by derived values (year, month, day) without partition columns in queries
+
+**Partitioned Iceberg tables** use `PARTITIONED BY SPEC` for fact tables:
+- `store_sales`, `store_returns` - partitioned by sold/returned date
+- `catalog_sales`, `catalog_returns` - partitioned by sold/returned date
+- `web_sales`, `web_returns` - partitioned by sold/returned date
+- `inventory` - partitioned by date
+
+**Non-partitioned Iceberg tables** use simple CTAS without partition specifications.
+
+Both variants set `iceberg.mr.schema.auto.conversion=true` to handle schema conversion during table creation.
+
+Troubleshooting
+===============
+
+## Ranger Permission Issues
+
+If you see `HiveAccessControlException` or `Permission denied` errors:
+
+**Check permissions for BOTH your user AND the 'hive' service user.**
+
+The error may show your username, but the actual missing permission could be for the `hive` user accessing the source data location.
+
+In Ranger, create an HDFS policy:
+- **Path:** `/tmp/tpcds-generate` (recursive)
+- **Users:** `<your_user>`, `hive`
+- **Permissions:** Read, Write, Execute
+
+## MapReduce Framework Issues
+
+**Error:** `File does not exist: hdfs://.../mr-framework.tar.gz`
+
+**Solution:** In Cloudera Manager: **YARN > Actions > Install YARN MapReduce Framework Jars**
+
+**Error:** `Download and unpack failed` or `gzip: stdin: not in gzip format`
+
+**Solution:** The framework archive is corrupted. Delete and reinstall:
+```bash
+hdfs dfs -rm -r /user/yarn/mapreduce/mr-framework/*.tar.gz
+# Then reinstall via Cloudera Manager
+```
+
+## YARN User Directory Issues
+
+**Error:** `Couldn't get userdir directory for <username>`
+
+**Solutions:**
+1. Ensure you have a valid home directory on all cluster nodes
+2. Check `yarn.nodemanager.local-dirs` configuration in YARN
+3. Verify NodeManager local directories have correct permissions (`yarn:hadoop`, mode `755`)
+
+## Source Tables Not Found
+
+**Error:** `Table not found 'date_dim'` during setup
+
+**Solutions:**
+1. Ensure `tpcds-gen.sh` completed successfully
+2. Verify text database exists: `hive -e "SHOW DATABASES LIKE 'tpcds_text_*';"`
+3. Recreate text tables manually:
+   ```bash
+   hive -i settings/load-flat.sql -f ddl-tpcds/text/alltables.sql \
+     --hivevar DB=tpcds_text_<scale> --hivevar LOCATION=<hdfs_dir>/<scale>
+   ```
+
+## Debug Mode
+
+For detailed error output, set `DEBUG_SCRIPT=1`:
+```bash
+DEBUG_SCRIPT=1 ./tpcds-gen.sh --scale 100
+DEBUG_SCRIPT=1 ./tpcds-setup.sh --scale 100
+```
 
 Performance Testing
-=================
+===================
 
-After Step 3 in [Install and Setup](#install-and-setup) you can choose to buildout a series for 4 databases (dimensions) that you can run performance tests against.  This will help build an understanding of what design and access patterns work well together.  Warning: There is never an 'absolute' best dimension to choose.  You'll see.. ;)
+After generating data, you can run performance comparisons across different table designs.
 
-The [./tpcds-setup-all.sh](./tpcds-setup-all.sh) script will generate the `--scale` datasets you choose and build 4 test databases off that generated data.  They will be:
+## Using time.sh
 
-- Managed, Partitioned, Orc
-- Managed, Not Partitioned, Orc
-- External, Partitioned, Orc
-- External, Not Partitioned, Orc
+Run all TPC-DS queries against a specific database:
+```bash
+cd sample-queries-tpcds
+./time.sh --db tpcds_partitioned_external_orc_100
+```
 
-Once built, review and run the tpcds [time.sh](./sample-queries-tpcds/time.sh) query to iterate through all the tpcds queries on the `--db` you choose.
+## Using time_again.sh
 
-OR
+Iterate over all 4 database variants multiple times:
+```bash
+./time_again.sh --scale 100 --iterations 3 --dir /local/results
+```
 
-Run the [time_again.sh](./sample-queries-tpcds/time_again.sh) script to 'iterate' over ALL 4 dimensions `--iterations` times.  Specify the `--scale` so we can locate the right db's for the test.  Specify a `--dir` (local directory) to record the runtimes.
+This helps compare performance across:
+- External vs Iceberg tables
+- Partitioned vs Non-partitioned tables
 
-The output in `--dir` can be moved to **hdfs** and the queries in [evaluate](./evaluate) can be used to build the schema and correlate the stats that will compare the dimension runtimes.
+## Analyzing Results
+
+Output from `time_again.sh` can be loaded into HDFS and analyzed using queries in the `evaluate/` directory.
+
+Scale Factor Guidelines
+=======================
+
+| Scale Factor | Data Size | Recommended Cluster |
+|--------------|-----------|---------------------|
+| 10 | ~10 GB | Development/testing |
+| 100 | ~100 GB | Small cluster (4-10 nodes) |
+| 1000 | ~1 TB | Medium cluster |
+| 10000 | ~10 TB | Large cluster |
+| 100000 | ~100 TB | Very large cluster |
+
+Generation time varies based on cluster size and available resources.
 
 Feedback
 ========
 
-If you have questions, comments or problems, [contact me](emailto:dstreever@cloudera.com).
+If you have questions, comments or problems, [contact me](mailto:dstreever@cloudera.com).
 
+If you have improvements, pull requests are accepted.
