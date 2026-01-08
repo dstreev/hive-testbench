@@ -58,6 +58,18 @@ public interface Table<T> {
     String formatRow(T row, String delimiter);
 
     /**
+     * Format a row as a delimited string (type-erased version for generic use).
+     *
+     * @param row The row to format (must be of type T)
+     * @param delimiter The field delimiter
+     * @return The formatted row string
+     */
+    @SuppressWarnings("unchecked")
+    default String formatRowObject(Object row, String delimiter) {
+        return formatRow((T) row, delimiter);
+    }
+
+    /**
      * Check if this table is date-based (row count varies by date range).
      */
     default boolean isDateBased() {

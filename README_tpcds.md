@@ -14,8 +14,8 @@ Prerequisites
 You will need:
 * CDP 7.1.4+ or later cluster or Sandbox. (7.1.4 required to support legacy CREATE for EXTERNAL tables)
 * Apache Hive.
+* Java 11+ and Maven (for building the data generator)
 * Between 15 minutes and 2 days to generate data (depending on the Scale Factor you choose and available hardware).
-* If you plan to generate 1TB or more of data, using Apache Hive 13+ to generate the data is STRONGLY suggested.
 
 Install and Setup
 =================
@@ -24,7 +24,7 @@ All of these steps should be carried out on your Hadoop cluster.
 
 - Step 1: Prepare your environment.
 
-  In addition to Hadoop and Hive, before you begin ensure ```gcc``` is installed and available on your system path. If you system does not have it, install it using yum or apt-get.
+  Ensure Java 11+ is installed and available on your system path. Maven will be automatically downloaded if not present.
 
 - Step 2: Decide which test suite(s) you want to use.
 
@@ -32,14 +32,14 @@ All of these steps should be carried out on your Hadoop cluster.
 
 - Step 3: Compile and package the appropriate data generator.
 
-  For TPC-DS, ```./tpcds-build.sh``` downloads, compiles and packages the TPC-DS data generator.
+  For TPC-DS, ```./tpcds-build.sh``` compiles and packages the pure Java TPC-DS data generator.
   For TPC-H, ```./tpch-build.sh``` downloads, compiles and packages the TPC-H data generator.
+
+  Note: The TPC-DS generator is now a pure Java implementation that doesn't require gcc or native compilation. It supports both standalone local generation and distributed Hadoop MapReduce execution.
 
 - Step 4: Decide how much data you want to generate OR [Performance Testing](#performance-testing)
 
   You need to decide on a "Scale Factor" which represents how much data you will generate. Scale Factor roughly translates to gigabytes, so a Scale Factor of 100 is about 100 gigabytes and one terabyte is Scale Factor 1000. Decide how much data you want and keep it in mind for the next step. If you have a cluster of 4-10 nodes or just want to experiment at a smaller scale, scale 1000 (1 TB) of data is a good starting point. If you have a large cluster, you may want to choose Scale 10000 (10 TB) or more. The notion of scale factor is similar between TPC-DS and TPC-H.
-
-  If you want to generate a large amount of data, you should use Hive 13 or later. Hive 13 introduced an optimization that allows far more scalable data partitioning. Hive 12 and lower will likely crash if you generate more than a few hundred GB of data and tuning around the problem is difficult. You can generate text or RCFile data in Hive 13 and use it in multiple versions of Hive.
 
 - Step 5: Generate and load the data.
 

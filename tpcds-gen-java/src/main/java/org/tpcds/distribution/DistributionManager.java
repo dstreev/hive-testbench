@@ -23,6 +23,7 @@ public class DistributionManager {
     private static final int IDX_SIZE = D_NAME_LEN + 7 * 4;  // name + 7 ints
 
     private String distributionFile;
+    private byte[] distributionData;  // For in-memory loading
     private Map<String, DistributionIndex> indexMap;
     private List<DistributionIndex> indexList;
     private boolean indexLoaded = false;
@@ -33,6 +34,35 @@ public class DistributionManager {
         this.rng = rng;
         this.indexMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         this.indexList = new ArrayList<>();
+    }
+
+    /**
+     * Default constructor for stream-based loading.
+     */
+    public DistributionManager() {
+        this.indexMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        this.indexList = new ArrayList<>();
+    }
+
+    /**
+     * Set the RNG after construction.
+     */
+    public void setRng(RandomNumberGenerator rng) {
+        this.rng = rng;
+    }
+
+    /**
+     * Load distributions from an InputStream (e.g., from classpath resource).
+     */
+    public synchronized void loadFromStream(InputStream is) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        int read;
+        while ((read = is.read(buffer)) != -1) {
+            baos.write(buffer, 0, read);
+        }
+        this.distributionData = baos.toByteArray();
+        loadIndexFromData();
     }
 
     /**
@@ -92,13 +122,121 @@ public class DistributionManager {
         return ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN).getInt();
     }
 
+    private int readIntFromData(int offset) {
+        return ByteBuffer.wrap(distributionData, offset, 4).order(ByteOrder.BIG_ENDIAN).getInt();
+    }
+
+    /**
+     * Load the distribution index from in-memory data.
+     */
+    private synchronized void loadIndexFromData() throws IOException {
+        if (indexLoaded) {
+            return;
+        }
+
+        // Read entry count from beginning
+        int entryCount = readIntFromData(0);
+
+        // Index is at end of data
+        int indexOffset = distributionData.length - entryCount * IDX_SIZE;
+
+        // Read each index entry
+        int pos = indexOffset;
+        for (int i = 0; i < entryCount; i++) {
+            DistributionIndex di = new DistributionIndex();
+
+            // Read name (20 bytes, null-terminated)
+            int nameEnd = 0;
+            while (nameEnd < D_NAME_LEN && distributionData[pos + nameEnd] != 0) {
+                nameEnd++;
+            }
+            di.setName(new String(distributionData, pos, nameEnd));
+            pos += D_NAME_LEN;
+
+            // Read index fields (7 x 4-byte big-endian ints)
+            di.setIndex(readIntFromData(pos)); pos += 4;
+            di.setOffset(readIntFromData(pos)); pos += 4;
+            di.setStrSpace(readIntFromData(pos)); pos += 4;
+            di.setLength(readIntFromData(pos)); pos += 4;
+            di.setWWidth(readIntFromData(pos)); pos += 4;
+            di.setVWidth(readIntFromData(pos)); pos += 4;
+            di.setNameSpace(readIntFromData(pos)); pos += 4;
+
+            indexList.add(di);
+            indexMap.put(di.getName(), di);
+        }
+
+        // Sort by name for binary search compatibility
+        indexList.sort((a, b) -> a.getName().compareToIgnoreCase(b.getName()));
+        indexLoaded = true;
+    }
+
+    /**
+     * Load a distribution's data from in-memory data.
+     */
+    private synchronized void loadDistFromData(DistributionIndex di) throws IOException {
+        if (di.isLoaded()) {
+            return;
+        }
+
+        int pos = di.getOffset();
+        Distribution d = new Distribution();
+        d.setSize(di.getLength());
+
+        // Load type vector
+        int[] typeVector = new int[di.getVWidth()];
+        for (int i = 0; i < di.getVWidth(); i++) {
+            typeVector[i] = readIntFromData(pos); pos += 4;
+        }
+        d.setTypeVector(typeVector);
+
+        // Load weight sets (and calculate cumulative weights and maximums)
+        int[][] weightSets = new int[di.getWWidth()][di.getLength()];
+        int[] maximums = new int[di.getWWidth()];
+        for (int w = 0; w < di.getWWidth(); w++) {
+            maximums[w] = 0;
+            for (int j = 0; j < di.getLength(); j++) {
+                int weight = readIntFromData(pos); pos += 4;
+                maximums[w] += weight;
+                weightSets[w][j] = maximums[w];  // Store cumulative weight
+            }
+        }
+        d.setWeightSets(weightSets);
+        d.setMaximums(maximums);
+
+        // Load value sets (offsets into strings)
+        int[][] valueSets = new int[di.getVWidth()][di.getLength()];
+        for (int v = 0; v < di.getVWidth(); v++) {
+            for (int j = 0; j < di.getLength(); j++) {
+                valueSets[v][j] = readIntFromData(pos); pos += 4;
+            }
+        }
+        d.setValueSets(valueSets);
+
+        // Load column aliases if present
+        if (di.getNameSpace() > 0) {
+            d.setNames(new String(distributionData, pos, di.getNameSpace()));
+            pos += di.getNameSpace();
+        }
+
+        // Load string values
+        d.setStrings(new String(distributionData, pos, di.getStrSpace()));
+
+        di.setDist(d);
+        di.markLoaded();
+    }
+
     /**
      * Find a distribution by name.
      */
     public DistributionIndex findDist(String name) {
         if (!indexLoaded) {
             try {
-                loadIndex();
+                if (distributionData != null) {
+                    loadIndexFromData();
+                } else {
+                    loadIndex();
+                }
             } catch (IOException e) {
                 throw new RuntimeException("Failed to load distribution index: " + e.getMessage(), e);
             }
@@ -107,7 +245,11 @@ public class DistributionManager {
         DistributionIndex di = indexMap.get(name);
         if (di != null && !di.isLoaded()) {
             try {
-                loadDist(di);
+                if (distributionData != null) {
+                    loadDistFromData(di);
+                } else {
+                    loadDist(di);
+                }
             } catch (IOException e) {
                 throw new RuntimeException("Failed to load distribution '" + name + "': " + e.getMessage(), e);
             }

@@ -1,7 +1,12 @@
-#!/bin/sh
+#!/bin/bash
 
-# Check for all the stuff I need to function.
-for f in gcc javac; do
+# TPC-DS Data Generator Build Script
+# This script builds the Java-based TPC-DS data generator
+
+set -e
+
+# Check for required programs
+for f in javac; do
 	which $f > /dev/null 2>&1
 	if [ $? -ne 0 ]; then
 		echo "Required program $f is missing. Please install or fix your path and try again."
@@ -9,30 +14,60 @@ for f in gcc javac; do
 	fi
 done
 
-# Check if Maven is installed and install it if not.
-which mvn > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-	SKIP=0
-	if [ -e "apache-maven-3.0.5-bin.tar.gz" ]; then
-		SIZE=`du -b apache-maven-3.0.5-bin.tar.gz | cut -f 1`
-		if [ $SIZE -eq 5144659 ]; then
-			SKIP=1
-		fi
-	fi
-	if [ $SKIP -ne 1 ]; then
-		echo "Maven not found, automatically installing it."
-		curl -O https://downloads.apache.org/maven/maven-3/3.0.5/binaries/apache-maven-3.0.5-bin.tar.gz 2> /dev/null
+# Check if Maven is installed
+MVN=""
+if which mvn > /dev/null 2>&1; then
+	MVN="mvn"
+elif [ -x "./apache-maven-3.9.6/bin/mvn" ]; then
+	MVN="./apache-maven-3.9.6/bin/mvn"
+else
+	# Download and install Maven if not found
+	echo "Maven not found, automatically installing it."
+	MAVEN_VERSION="3.9.6"
+	MAVEN_URL="https://downloads.apache.org/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz"
+
+	if [ ! -e "apache-maven-${MAVEN_VERSION}-bin.tar.gz" ]; then
+		curl -O "$MAVEN_URL" 2> /dev/null
 		if [ $? -ne 0 ]; then
 			echo "Failed to download Maven, check Internet connectivity and try again."
 			exit 1
 		fi
 	fi
-	tar -zxf apache-maven-3.0.5-bin.tar.gz > /dev/null
-	CWD=$(pwd)
-	export MAVEN_HOME="$CWD/apache-maven-3.0.5"
-	export PATH=$PATH:$MAVEN_HOME/bin
+	tar -zxf "apache-maven-${MAVEN_VERSION}-bin.tar.gz" > /dev/null
+	MVN="./apache-maven-${MAVEN_VERSION}/bin/mvn"
 fi
 
-echo "Building TPC-DS Data Generator"
-(cd tpcds-gen; make)
-echo "TPC-DS Data Generator built, you can now use tpcds-setup.sh to generate data."
+echo "Building TPC-DS Data Generator (Java)"
+
+# Build the Java generator
+cd tpcds-gen-java
+$MVN clean package -DskipTests -q
+
+if [ $? -ne 0 ]; then
+	echo "Build failed!"
+	exit 1
+fi
+
+cd ..
+
+# Copy the tpcds.idx distribution file into the JAR's resources if available
+if [ -f "tpcds-gen/target/tools/tpcds.idx" ]; then
+	echo "Found tpcds.idx distribution file"
+	# The distribution file is packaged separately and passed at runtime
+fi
+
+echo ""
+echo "TPC-DS Data Generator built successfully!"
+echo ""
+echo "JAR location: tpcds-gen-java/target/tpcds-gen-java-1.0-SNAPSHOT.jar"
+echo ""
+echo "Usage examples:"
+echo "  Local generation:"
+echo "    java -jar tpcds-gen-java/target/tpcds-gen-java-1.0-SNAPSHOT.jar \\"
+echo "      -s <scale> -d <output_dir> --distributions <path/to/tpcds.idx>"
+echo ""
+echo "  Hadoop distributed generation:"
+echo "    hadoop jar tpcds-gen-java/target/tpcds-gen-java-1.0-SNAPSHOT.jar \\"
+echo "      org.tpcds.hadoop.GenTableMR -s <scale> -d <hdfs_output_dir>"
+echo ""
+echo "You can now use tpcds-gen.sh to generate data or tpcds-setup.sh to set up Hive tables."
