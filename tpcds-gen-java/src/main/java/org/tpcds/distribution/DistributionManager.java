@@ -329,6 +329,10 @@ public class DistributionManager {
      * @return The selected string value
      */
     public String pickDistribution(String distName, int vset, int wset, int stream) {
+        if (rng == null) {
+            throw new IllegalStateException("RandomNumberGenerator not set on DistributionManager. Call setRng() first.");
+        }
+
         DistributionIndex di = findDist(distName);
         if (di == null) {
             throw new IllegalArgumentException("Invalid distribution name: " + distName);
