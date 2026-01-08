@@ -180,13 +180,13 @@ else
 
 	# Run the Hadoop MapReduce job
 	# Note: YARN jar is used, and -D options must come before class arguments
-	# Use tee to show real-time output while capturing for error detection
+	# Use unbuffered tee to show real-time output while capturing for error detection
 	MR_LOG="/tmp/tpcds-mr-$$.log"
 	yarn jar "$JAR_FILE" org.tpcds.hadoop.GenTableMR \
 		-Dtpcds.distributions="$HDFS_DIST" \
 		-s $SCALE \
 		-d ${DIR}/${SCALE} \
-		-p $PARALLEL 2>&1 | tee "$MR_LOG"
+		-p $PARALLEL 2>&1 | stdbuf -oL tee "$MR_LOG"
 
 	MR_EXIT_CODE=${PIPESTATUS[0]}
 	MR_OUTPUT=$(cat "$MR_LOG")
