@@ -47,6 +47,18 @@
     </dependencies>
 
     <build>
+        <!-- Include tpcds.idx in the JAR for MapReduce distribution -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <resource>
+                <directory>tpcds-tools</directory>
+                <includes>
+                    <include>tpcds.idx</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

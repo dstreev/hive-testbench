@@ -15,7 +15,36 @@ You will need:
 * CDP 7.1.4+ or later cluster or Sandbox. (7.1.4 required to support legacy CREATE for EXTERNAL tables)
 * Apache Hive.
 * Java 11+ and Maven (for building the data generator)
+* MapReduce Framework jars deployed to HDFS (for distributed data generation)
 * Between 15 minutes and 2 days to generate data (depending on the Scale Factor you choose and available hardware).
+
+**Important:** The TPC-DS data generator uses MapReduce for distributed data generation. You must ensure the MapReduce framework jars are deployed to HDFS before running the generator. In Cloudera Manager, go to **YARN > Actions > Install YARN MapReduce Framework Jars**. If this step is skipped, you will see an error like:
+```
+java.io.FileNotFoundException: File does not exist: hdfs://.../mr-framework.tar.gz
+```
+
+**YARN User Directory Permissions:** If you see an error like:
+```
+Error checking file stats for /home/yarn/nm -1 Permission denied.
+Couldn't get userdir directory for <username>.
+```
+This indicates the YARN container executor cannot access the user's directory. Solutions:
+1. Ensure the user has a valid home directory on all cluster nodes
+2. Check that `yarn.nodemanager.local-dirs` in YARN configuration points to accessible directories
+3. In Cloudera Manager, verify YARN > Configuration > NodeManager Local Directories are properly set and have correct permissions (typically owned by `yarn:hadoop` with mode `755`)
+
+**Corrupted MapReduce Framework Archive:** If you see an error like:
+```
+gzip -dc | (cd '...' && tar -x ) Process exited with exit code 2
+Download and unpack failed
+```
+This indicates the MapReduce framework tar.gz file on HDFS is corrupted or incomplete. Solutions:
+1. In Cloudera Manager, go to **YARN > Actions > Install YARN MapReduce Framework Jars** to reinstall
+2. If the problem persists, manually delete the old framework file from HDFS first:
+   ```
+   hdfs dfs -rm -r /user/yarn/mapreduce/mr-framework/*.tar.gz
+   ```
+   Then reinstall via Cloudera Manager
 
 Install and Setup
 =================

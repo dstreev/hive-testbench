@@ -180,11 +180,12 @@ else
 
 	# Run the Hadoop MapReduce job
 	# Note: YARN jar is used, and -D options must come before class arguments
-	yarn jar "$JAR_FILE" org.tpcds.hadoop.GenTableMR \
+	# Capture both stdout and stderr for error detection
+	MR_OUTPUT=$(yarn jar "$JAR_FILE" org.tpcds.hadoop.GenTableMR \
 		-Dtpcds.distributions="$HDFS_DIST" \
 		-s $SCALE \
 		-d ${DIR}/${SCALE} \
-		-p $PARALLEL
+		-p $PARALLEL 2>&1)
 
 	MR_EXIT_CODE=$?
 
@@ -195,16 +196,50 @@ else
 		echo ""
 		echo "ERROR: Data generation MapReduce job failed!"
 		echo ""
-		echo "Possible causes:"
-		echo "  - Insufficient YARN resources (check Resource Manager UI)"
-		echo "  - HDFS write permission issues"
-		echo "  - OutOfMemory errors (check YARN application logs)"
-		echo ""
-		echo "To debug, check the YARN application logs:"
-		echo "  yarn logs -applicationId <app_id>"
-		echo ""
-		echo "You can also try with fewer parallel streams:"
-		echo "  ./tpcds-gen.sh --scale ${SCALE} --dir ${DIR} --parallel $((PARALLEL/2))"
+
+		# Check for specific error conditions
+		if echo "$MR_OUTPUT" | grep -q "Download and unpack failed"; then
+			echo "CAUSE: MapReduce framework archive is corrupted or incomplete."
+			echo ""
+			echo "The mr-framework.tar.gz file on HDFS cannot be unpacked."
+			echo ""
+			echo "SOLUTION:"
+			echo "  1. In Cloudera Manager: YARN > Actions > Install YARN MapReduce Framework Jars"
+			echo ""
+			echo "  If that doesn't work, manually remove and reinstall:"
+			echo "  2. hdfs dfs -rm -r /user/yarn/mapreduce/mr-framework/*.tar.gz"
+			echo "  3. Then reinstall via Cloudera Manager"
+		elif echo "$MR_OUTPUT" | grep -q "mr-framework.tar.gz"; then
+			echo "CAUSE: MapReduce framework jars are not deployed to HDFS."
+			echo ""
+			echo "SOLUTION: In Cloudera Manager, go to:"
+			echo "  YARN > Actions > Install YARN MapReduce Framework Jars"
+			echo ""
+			echo "After installing the framework jars, re-run this script."
+		elif echo "$MR_OUTPUT" | grep -q "Couldn't get userdir directory"; then
+			echo "CAUSE: YARN container executor cannot access user directory."
+			echo ""
+			echo "This error indicates permission issues with YARN NodeManager local directories."
+			echo ""
+			echo "SOLUTIONS:"
+			echo "  1. Ensure you have a valid home directory on all cluster nodes"
+			echo "  2. Check yarn.nodemanager.local-dirs configuration in YARN"
+			echo "  3. In Cloudera Manager: YARN > Configuration > NodeManager Local Directories"
+			echo "     Verify directories exist and have correct permissions (yarn:hadoop, mode 755)"
+			echo ""
+			echo "Contact your Hadoop administrator to resolve this issue."
+		else
+			echo "Possible causes:"
+			echo "  - Insufficient YARN resources (check Resource Manager UI)"
+			echo "  - HDFS write permission issues"
+			echo "  - OutOfMemory errors (check YARN application logs)"
+			echo ""
+			echo "To debug, check the YARN application logs:"
+			echo "  yarn logs -applicationId <app_id>"
+			echo ""
+			echo "You can also try with fewer parallel streams:"
+			echo "  ./tpcds-gen.sh --scale ${SCALE} --dir ${DIR} --parallel $((PARALLEL/2))"
+		fi
 		echo ""
 		exit 1
 	fi
