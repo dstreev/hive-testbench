@@ -280,8 +280,31 @@ echo ""
 
 # Create the text/flat tables as external tables
 HIVE="hive"
-echo "Loading text data into external Hive tables."
-runcommand "$HIVE -i settings/load-flat.sql -f ddl-tpcds/text/alltables.sql --hivevar DB=tpcds_text_${SCALE} --hivevar LOCATION=${DIR}/${SCALE}"
+echo "Loading text data into external Hive tables..."
+$HIVE -i settings/load-flat.sql -f ddl-tpcds/text/alltables.sql --hivevar DB=tpcds_text_${SCALE} --hivevar LOCATION=${DIR}/${SCALE}
+HIVE_EXIT=$?
+
+if [ $HIVE_EXIT -ne 0 ]; then
+	echo ""
+	echo "ERROR: Failed to create text tables in Hive!"
+	echo ""
+	echo "The data was generated successfully, but the Hive external tables could not be created."
+	echo ""
+	echo "You can try to create them manually:"
+	echo "  hive -i settings/load-flat.sql -f ddl-tpcds/text/alltables.sql \\"
+	echo "    --hivevar DB=tpcds_text_${SCALE} --hivevar LOCATION=${DIR}/${SCALE}"
+	echo ""
+	exit 1
+fi
+
+# Verify at least one table was created
+TABLE_CHECK=$($HIVE -e "SHOW TABLES IN tpcds_text_${SCALE};" 2>/dev/null | wc -l)
+if [ "$TABLE_CHECK" -lt 20 ]; then
+	echo ""
+	echo "WARNING: Only ${TABLE_CHECK} tables found in tpcds_text_${SCALE}."
+	echo "Expected at least 24 tables. Some table creation may have failed."
+	echo ""
+fi
 
 echo ""
 echo "Text data loaded into database tpcds_text_${SCALE}"

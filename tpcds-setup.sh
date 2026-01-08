@@ -19,10 +19,11 @@ function usage {
 
 function runcommand {
 	if [ "X$DEBUG_SCRIPT" != "X" ]; then
-		$1
+		eval "$1"
 	else
-		$1 2>/dev/null
+		eval "$1" 2>/dev/null
 	fi
+	return $?
 }
 
 which hive > /dev/null 2>&1
@@ -200,7 +201,7 @@ if [ "$DB_EXISTS" -eq 0 ]; then
 	echo "The script will attempt to create the text tables first."
 	echo ""
 	echo "Running text table creation..."
-	runcommand "$HIVE -i settings/load-flat.sql -f ddl-tpcds/text/alltables.sql --hivevar DB=tpcds_text_${SCALE} --hivevar LOCATION=${DIR}/${SCALE}"
+	$HIVE -i settings/load-flat.sql -f ddl-tpcds/text/alltables.sql --hivevar DB=tpcds_text_${SCALE} --hivevar LOCATION=${DIR}/${SCALE}
 	if [ $? -ne 0 ]; then
 		echo ""
 		echo "ERROR: Failed to create text tables."
@@ -209,6 +210,28 @@ if [ "$DB_EXISTS" -eq 0 ]; then
 	fi
 	echo "Text tables created successfully."
 fi
+
+# Verify source tables actually exist by checking for date_dim (first table processed)
+echo "Verifying source tables exist..."
+TABLE_CHECK=$($HIVE -e "SHOW TABLES IN tpcds_text_${SCALE} LIKE 'date_dim';" 2>/dev/null | grep -c "date_dim")
+if [ "$TABLE_CHECK" -eq 0 ]; then
+	echo ""
+	echo "ERROR: Source table 'tpcds_text_${SCALE}.date_dim' not found."
+	echo ""
+	echo "The text tables were not properly created. This can happen if:"
+	echo "  1. tpcds-gen.sh failed during text table creation"
+	echo "  2. The generated data at ${DIR}/${SCALE} is incomplete"
+	echo ""
+	echo "To fix this, try recreating the text tables manually:"
+	echo "  hive -i settings/load-flat.sql -f ddl-tpcds/text/alltables.sql \\"
+	echo "    --hivevar DB=tpcds_text_${SCALE} --hivevar LOCATION=${DIR}/${SCALE}"
+	echo ""
+	echo "Or regenerate the data:"
+	echo "  ./tpcds-gen.sh --scale ${SCALE} --dir ${DIR}"
+	echo ""
+	exit 1
+fi
+echo "Source tables verified."
 
 echo "Pre-flight checks passed. Starting table optimization..."
 echo ""
