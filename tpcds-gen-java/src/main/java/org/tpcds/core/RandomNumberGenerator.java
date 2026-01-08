@@ -73,13 +73,14 @@ public class RandomNumberGenerator {
      * Generate the next random number in the specified stream.
      * Uses the Linear Congruential Generator algorithm.
      *
-     * @param stream The stream index to use
+     * @param stream The stream index to use (will be bounded to valid range)
      * @return A random long in range [0, MAXINT)
      */
     public long nextRandom(int stream) {
         ensureInitialized();
 
-        long s = streams[stream].getSeed();
+        int boundedStream = boundStream(stream);
+        long s = streams[boundedStream].getSeed();
         long divRes = s / NQ;
         long modRes = s - NQ * divRes;  // s % NQ
         s = MULT * modRes - divRes * NR;
@@ -88,8 +89,8 @@ public class RandomNumberGenerator {
             s += MAXINT;
         }
 
-        streams[stream].setSeed(s);
-        streams[stream].incrementUsed();
+        streams[boundedStream].setSeed(s);
+        streams[boundedStream].incrementUsed();
 
         return s;
     }
@@ -106,14 +107,15 @@ public class RandomNumberGenerator {
      * Skip ahead N positions in a stream using fast exponentiation.
      * This allows parallel generation by skipping to different positions.
      *
-     * @param stream The stream to skip
+     * @param stream The stream to skip (will be bounded to valid range)
      * @param n Number of positions to skip
      */
     public void skipRandom(int stream, long n) {
         ensureInitialized();
 
+        int boundedStream = boundStream(stream);
         long m = MULT;
-        long z = streams[stream].getInitialSeed();
+        long z = streams[boundedStream].getInitialSeed();
 
         while (n > 0) {
             if (n % 2 != 0) {
@@ -123,7 +125,7 @@ public class RandomNumberGenerator {
             m = (m * m) % MAXINT;
         }
 
-        streams[stream].setSeed(z);
+        streams[boundedStream].setSeed(z);
     }
 
     /**
@@ -323,7 +325,7 @@ public class RandomNumberGenerator {
      */
     public void resetStream(int stream) {
         ensureInitialized();
-        streams[stream].reset();
+        streams[boundStream(stream)].reset();
     }
 
     /**
@@ -331,7 +333,7 @@ public class RandomNumberGenerator {
      */
     public RandomNumberStream getStream(int index) {
         ensureInitialized();
-        return streams[index];
+        return streams[boundStream(index)];
     }
 
     /**
@@ -339,8 +341,9 @@ public class RandomNumberGenerator {
      */
     public long setStreamSeed(int stream, long value) {
         ensureInitialized();
-        long oldValue = streams[stream].getSeed();
-        streams[stream].setSeed(value);
+        int boundedStream = boundStream(stream);
+        long oldValue = streams[boundedStream].getSeed();
+        streams[boundedStream].setSeed(value);
         return oldValue;
     }
 
@@ -348,5 +351,17 @@ public class RandomNumberGenerator {
         if (!initialized) {
             init();
         }
+    }
+
+    /**
+     * Bound a stream index to the valid range [0, MAX_COLUMN].
+     * This handles cases where row numbers or other large values are used as stream indices.
+     */
+    private int boundStream(int stream) {
+        int bounded = stream % (MAX_COLUMN + 1);
+        if (bounded < 0) {
+            bounded += (MAX_COLUMN + 1);
+        }
+        return bounded;
     }
 }

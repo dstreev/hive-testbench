@@ -41,12 +41,29 @@ echo "Building TPC-DS Data Generator (Java)"
 
 # Build the Java generator
 cd tpcds-gen-java
+
+# Remove any old build artifacts to ensure a clean build
+echo "Cleaning old build artifacts..."
+rm -rf target/
+rm -rf target-classes/
+
+# Build with Maven clean to ensure fresh compilation
+echo "Compiling..."
 $MVN clean package -DskipTests -q
 
 if [ $? -ne 0 ]; then
 	echo "Build failed!"
 	exit 1
 fi
+
+# Verify the JAR was created
+if [ ! -f "target/tpcds-gen-java-1.0-SNAPSHOT.jar" ]; then
+	echo "Build appeared to succeed but JAR file not found!"
+	exit 1
+fi
+
+# Show JAR timestamp for verification
+echo "JAR built: $(ls -la target/tpcds-gen-java-1.0-SNAPSHOT.jar | awk '{print $6, $7, $8}')"
 
 cd ..
 
