@@ -180,14 +180,17 @@ else
 
 	# Run the Hadoop MapReduce job
 	# Note: YARN jar is used, and -D options must come before class arguments
-	# Capture both stdout and stderr for error detection
-	MR_OUTPUT=$(yarn jar "$JAR_FILE" org.tpcds.hadoop.GenTableMR \
+	# Use tee to show real-time output while capturing for error detection
+	MR_LOG="/tmp/tpcds-mr-$$.log"
+	yarn jar "$JAR_FILE" org.tpcds.hadoop.GenTableMR \
 		-Dtpcds.distributions="$HDFS_DIST" \
 		-s $SCALE \
 		-d ${DIR}/${SCALE} \
-		-p $PARALLEL 2>&1)
+		-p $PARALLEL 2>&1 | tee "$MR_LOG"
 
-	MR_EXIT_CODE=$?
+	MR_EXIT_CODE=${PIPESTATUS[0]}
+	MR_OUTPUT=$(cat "$MR_LOG")
+	rm -f "$MR_LOG"
 
 	# Cleanup temporary distributions file
 	hdfs dfs -rm -f "$HDFS_DIST" 2>/dev/null
