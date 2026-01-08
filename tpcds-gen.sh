@@ -43,6 +43,12 @@ if [ $? -ne 0 ]; then
 	exit 1
 fi
 
+which hdfs > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+	echo "Script must be run where HDFS client is installed"
+	exit 1
+fi
+
 # Default distributions file
 DISTRIBUTIONS="tpcds-gen-java/tpcds-tools/tpcds.idx"
 
@@ -119,8 +125,44 @@ if [ "X$PARALLEL" = "X" ]; then
 	PARALLEL=$SCALE
 fi
 
+# Verify HDFS connectivity
+echo "Checking HDFS connectivity..."
+hdfs dfs -test -e / > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+	echo ""
+	echo "ERROR: Cannot connect to HDFS."
+	echo ""
+	echo "Possible causes:"
+	echo "  - HDFS is not running or not accessible"
+	echo "  - Hadoop configuration is missing or incorrect"
+	echo "  - You don't have permission to access HDFS"
+	echo ""
+	echo "Please verify:"
+	echo "  1. HDFS is running: 'hdfs dfsadmin -report'"
+	echo "  2. Configuration is correct: check HADOOP_CONF_DIR or /etc/hadoop/conf"
+	echo "  3. You can access HDFS: 'hdfs dfs -ls /'"
+	echo ""
+	exit 1
+fi
+
 # Create output directory
+echo "Creating HDFS output directory: ${DIR}..."
 hdfs dfs -mkdir -p ${DIR}
+if [ $? -ne 0 ]; then
+	echo ""
+	echo "ERROR: Cannot create HDFS directory: ${DIR}"
+	echo ""
+	echo "Possible causes:"
+	echo "  - You don't have permission to create directories in this path"
+	echo "  - The HDFS filesystem may be in safe mode"
+	echo ""
+	echo "Please verify:"
+	echo "  1. Check your HDFS permissions: 'hdfs dfs -ls $(dirname ${DIR})'"
+	echo "  2. Check if HDFS is in safe mode: 'hdfs dfsadmin -safemode get'"
+	echo "  3. Contact your Hadoop administrator if needed"
+	echo ""
+	exit 1
+fi
 
 # Check if data already exists
 hdfs dfs -ls ${DIR}/${SCALE} > /dev/null 2>&1
@@ -143,24 +185,51 @@ else
 		-p $PARALLEL \
 		-Dtpcds.distributions="$HDFS_DIST"
 
+	MR_EXIT_CODE=$?
+
 	# Cleanup temporary distributions file
 	hdfs dfs -rm -f "$HDFS_DIST" 2>/dev/null
 
-	if [ $? -ne 0 ]; then
-		echo "Data generation failed!"
+	if [ $MR_EXIT_CODE -ne 0 ]; then
+		echo ""
+		echo "ERROR: Data generation MapReduce job failed!"
+		echo ""
+		echo "Possible causes:"
+		echo "  - Insufficient YARN resources (check Resource Manager UI)"
+		echo "  - HDFS write permission issues"
+		echo "  - OutOfMemory errors (check YARN application logs)"
+		echo ""
+		echo "To debug, check the YARN application logs:"
+		echo "  yarn logs -applicationId <app_id>"
+		echo ""
+		echo "You can also try with fewer parallel streams:"
+		echo "  ./tpcds-gen.sh --scale ${SCALE} --dir ${DIR} --parallel $((PARALLEL/2))"
+		echo ""
 		exit 1
 	fi
 fi
 
 # Verify data was generated
-hdfs dfs -ls ${DIR}/${SCALE} > /dev/null 2>&1
+hdfs dfs -test -d ${DIR}/${SCALE} > /dev/null 2>&1
 if [ $? -ne 0 ]; then
-	echo "Data generation failed, exiting."
+	echo ""
+	echo "ERROR: Data generation verification failed."
+	echo "Expected data directory not found: ${DIR}/${SCALE}"
+	echo ""
 	exit 1
 fi
 
+# Count generated table directories
+TABLE_COUNT=$(hdfs dfs -ls ${DIR}/${SCALE} 2>/dev/null | grep -c "^d")
+echo "Generated ${TABLE_COUNT} table directories."
+
 # Set permissions
-hadoop fs -chmod -R 777 ${DIR}/${SCALE}
+echo "Setting HDFS permissions..."
+hadoop fs -chmod -R 777 ${DIR}/${SCALE} 2>/dev/null
+if [ $? -ne 0 ]; then
+	echo "WARNING: Could not set permissions on ${DIR}/${SCALE}"
+	echo "You may need to adjust permissions manually if other users need access."
+fi
 
 echo ""
 echo "TPC-DS text data generation complete."
@@ -173,4 +242,9 @@ runcommand "$HIVE -i settings/load-flat.sql -f ddl-tpcds/text/alltables.sql --hi
 
 echo ""
 echo "Text data loaded into database tpcds_text_${SCALE}"
-echo "Run tpcds-setup.sh to create optimized ORC tables."
+echo ""
+echo "Next step - create optimized tables:"
+echo "  ./tpcds-setup.sh --scale ${SCALE} --dir ${DIR}"
+echo ""
+echo "Or create all table variants (partitioned/non-partitioned, managed/external):"
+echo "  ./tpcds-setup-all.sh --scale ${SCALE} --dir ${DIR}"
