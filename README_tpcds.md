@@ -1,7 +1,9 @@
-hive-testbench (TPC-DS)
+hive-testbench (TPC-DS) with Iceberg Support!!!
 ==============
 
 A testbench for experimenting with Apache Hive at any data scale using the TPC-DS benchmark.
+
+**Note:** This is a fork of the original [hive-testbench](https://github.com/hortonworks/hive-testbench) with TPC-DS support.
 
 Overview
 ========
@@ -13,12 +15,65 @@ This implementation uses a **pure Java TPC-DS data generator** that:
 - Runs as a Hadoop MapReduce job for distributed data generation
 - Produces TPC-DS compliant data at any scale factor
 
+Table Creation Options
+======================
+
+This testbench supports multiple table formats and configurations, allowing you to benchmark and compare different storage strategies.
+
+## Table Types
+
+| Type | Option | Description |
+|------|--------|-------------|
+| **External** | `--external` (default) | Standard Hive external tables. Data persists independently of table metadata. Best for data sharing and flexibility. |
+| **Iceberg** | `--iceberg` | Apache Iceberg tables with `STORED BY ICEBERG`. Provides ACID transactions, time travel, schema evolution, and partition evolution. |
+| **ACID** | `--acid` | Managed ACID tables with full transactional support. Data is managed by Hive and deleted when table is dropped. |
+
+## File Formats
+
+| Format | Option | Description |
+|--------|--------|-------------|
+| **ORC** | `--format orc` (default) | Optimized Row Columnar format. Best compression and performance for Hive workloads. |
+| **Parquet** | `--format parquet` | Apache Parquet format. Good interoperability with Spark, Impala, and other tools. |
+
+## Partitioning Strategies
+
+| Strategy | Option | Description |
+|----------|--------|-------------|
+| **Partitioned** | (default) | Fact tables partitioned by date columns for query optimization. |
+| **Non-partitioned** | `--no-part` | All tables without partitioning. Simpler but may have slower query performance. |
+
+## Comparison Matrix
+
+| Configuration | Use Case | Pros | Cons |
+|---------------|----------|------|------|
+| External + ORC + Partitioned | General benchmarking | Fast queries, flexible data management | Manual partition management |
+| External + Parquet + Partitioned | Multi-tool environments | Spark/Impala compatibility | Slightly larger files than ORC |
+| Iceberg + ORC + Partitioned | Modern data lakehouse | ACID, time travel, schema evolution | Requires Iceberg-aware tools |
+| Iceberg + ORC + Non-partitioned | Simple Iceberg testing | Easy setup, hidden partitioning available | May need partition evolution later |
+| ACID + ORC + Partitioned | Transactional workloads | Full ACID, compaction | Higher overhead, Hive-only |
+
+## Database Naming Convention
+
+Databases are named following this pattern:
+```
+tpcds_<partitioning>_<type>_<format>_<scale>
+```
+
+Examples:
+```
+tpcds_partitioned_external_orc_100       # External ORC with partitioning (default)
+tpcds_partitioned_iceberg_orc_100        # Iceberg ORC with partitioning
+tpcds_not_partitioned_iceberg_orc_100    # Iceberg ORC without partitioning
+tpcds_partitioned_acid_orc_100           # Managed ACID ORC with partitioning
+tpcds_not_partitioned_external_parquet_100  # External Parquet without partitioning
+```
+
 Prerequisites
 =============
 
 You will need:
 * CDP 7.1.4+ or later cluster (7.1.4 required to support legacy CREATE for EXTERNAL tables)
-* Apache Hive accessible via `hive` CLI
+* Apache Hive accessible via `beeline|hive` CLI
 * Hadoop/HDFS accessible via `hadoop` and `hdfs` CLI commands
 * Java 11+ (for building and running the data generator)
 * Maven (will be auto-downloaded if not present)
@@ -116,13 +171,11 @@ java -jar tpcds-gen-java/target/tpcds-gen-java-1.0-SNAPSHOT.jar \
 ./tpcds-setup.sh --scale <scale_factor> [options]
 ```
 
-**Options:**
+**General Options:**
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--scale` | Scale factor (must match generation) | - |
 | `--dir` | HDFS directory with generated data | `/tmp/tpcds-generate` |
-| `--no-part` | Create non-partitioned tables | (partitioned) |
-| `--format` | Table format: orc, parquet | `orc` |
 
 **Table Type (mutually exclusive):**
 | Option | Description | Default |
@@ -130,6 +183,12 @@ java -jar tpcds-gen-java/target/tpcds-gen-java-1.0-SNAPSHOT.jar \
 | `--external` | Create external Hive tables | **Yes (default)** |
 | `--iceberg` | Create Iceberg tables (STORED BY ICEBERG) | No |
 | `--acid` | Create managed ACID tables | No |
+
+**Format and Partitioning:**
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--format` | File format: `orc`, `parquet` | `orc` |
+| `--no-part` | Create non-partitioned tables | (partitioned) |
 
 **Examples:**
 ```bash
@@ -141,6 +200,9 @@ java -jar tpcds-gen-java/target/tpcds-gen-java-1.0-SNAPSHOT.jar \
 
 # Create non-partitioned Iceberg tables
 ./tpcds-setup.sh --scale 100 --dir /tmp/tpcds-generate --iceberg --no-part
+
+# Create Iceberg tables with Parquet format
+./tpcds-setup.sh --scale 100 --dir /tmp/tpcds-generate --iceberg --format parquet
 
 # Create managed ACID tables
 ./tpcds-setup.sh --scale 100 --dir /tmp/tpcds-generate --acid
@@ -155,15 +217,6 @@ java -jar tpcds-gen-java/target/tpcds-gen-java-1.0-SNAPSHOT.jar \
 3. Applies partitioning for fact tables (unless `--no-part`)
 4. For Iceberg tables, uses `STORED BY ICEBERG` and `PARTITIONED BY SPEC`
 5. Creates database with naming pattern: `tpcds_<strategy>_<type>_<format>_<scale>`
-
-**Database naming examples:**
-```
-tpcds_partitioned_external_orc_100       # External ORC (default)
-tpcds_partitioned_iceberg_orc_100        # Iceberg with partitioning
-tpcds_not_partitioned_iceberg_parquet_100  # Iceberg without partitioning
-tpcds_partitioned_acid_orc_100           # Managed ACID tables
-tpcds_not_partitioned_external_parquet_100  # External Parquet
-```
 
 ## Step 4: Create All Table Variants (Optional)
 
@@ -190,6 +243,27 @@ source query55.sql;
 ```
 
 More than 99 TPC-DS queries are included in `sample-queries-tpcds/`.
+
+Iceberg Tables
+==============
+
+When using `--iceberg`, tables are created with Apache Iceberg format which provides:
+
+- **ACID Transactions**: Full transactional support with snapshot isolation
+- **Time Travel**: Query historical versions of your data
+- **Schema Evolution**: Add, drop, rename, or reorder columns without rewriting data
+- **Partition Evolution**: Change partitioning strategy without data migration
+- **Hidden Partitioning**: Partition by derived values (year, month, day) without partition columns in queries
+
+**Partitioned Iceberg tables** use `PARTITIONED BY SPEC` for fact tables:
+- `store_sales`, `store_returns` - partitioned by sold/returned date
+- `catalog_sales`, `catalog_returns` - partitioned by sold/returned date
+- `web_sales`, `web_returns` - partitioned by sold/returned date
+- `inventory` - partitioned by date
+
+**Non-partitioned Iceberg tables** use simple CTAS without partition specifications.
+
+Both variants set `iceberg.mr.schema.auto.conversion=true` to handle schema conversion during table creation.
 
 Troubleshooting
 ===============
@@ -261,7 +335,7 @@ After generating data, you can run performance comparisons across different tabl
 Run all TPC-DS queries against a specific database:
 ```bash
 cd sample-queries-tpcds
-./time.sh --db tpcds_bin_partitioned_managed_orc_100
+./time.sh --db tpcds_partitioned_external_orc_100
 ```
 
 ## Using time_again.sh
@@ -272,7 +346,7 @@ Iterate over all 4 database variants multiple times:
 ```
 
 This helps compare performance across:
-- Managed vs External tables
+- External vs Iceberg tables
 - Partitioned vs Non-partitioned tables
 
 ## Analyzing Results
