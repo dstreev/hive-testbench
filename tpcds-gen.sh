@@ -179,11 +179,12 @@ else
 	hdfs dfs -put -f "$DISTRIBUTIONS" "$HDFS_DIST"
 
 	# Run the Hadoop MapReduce job
-	hadoop jar "$JAR_FILE" org.tpcds.hadoop.GenTableMR \
+	# Note: YARN jar is used, and -D options must come before class arguments
+	yarn jar "$JAR_FILE" org.tpcds.hadoop.GenTableMR \
+		-Dtpcds.distributions="$HDFS_DIST" \
 		-s $SCALE \
 		-d ${DIR}/${SCALE} \
-		-p $PARALLEL \
-		-Dtpcds.distributions="$HDFS_DIST"
+		-p $PARALLEL
 
 	MR_EXIT_CODE=$?
 

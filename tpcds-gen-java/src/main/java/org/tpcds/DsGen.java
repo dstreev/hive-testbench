@@ -208,7 +208,17 @@ public class DsGen implements Callable<Integer> {
         }
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
+        // Check if this is a Hadoop/YARN invocation requesting GenTableMR
+        // This happens when hadoop jar specifies a class but the manifest Main-Class takes precedence
+        if (args.length > 0 && "org.tpcds.hadoop.GenTableMR".equals(args[0])) {
+            // Remove the class name and delegate to GenTableMR
+            String[] remainingArgs = new String[args.length - 1];
+            System.arraycopy(args, 1, remainingArgs, 0, args.length - 1);
+            org.tpcds.hadoop.GenTableMR.main(remainingArgs);
+            return;
+        }
+
         int exitCode = new CommandLine(new DsGen()).execute(args);
         System.exit(exitCode);
     }
