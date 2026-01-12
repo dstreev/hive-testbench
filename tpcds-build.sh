@@ -5,14 +5,24 @@
 
 set -e
 
-# Check for required programs
-for f in javac; do
-	which $f > /dev/null 2>&1
-	if [ $? -ne 0 ]; then
-		echo "Required program $f is missing. Please install or fix your path and try again."
-		exit 1
-	fi
-done
+# Check that Java is available and at version 11+
+if ! which java > /dev/null 2>&1; then
+	echo "Java is not installed or not in PATH. Please install Java 11+ and try again."
+	exit 1
+fi
+
+JAVA_VERSION=$(java -version 2>&1 | head -n 1 | sed -E 's/.*"([0-9]+)(\.[0-9]+)*.*"/\1/')
+if [ -z "$JAVA_VERSION" ]; then
+	echo "Could not determine Java version. Please ensure Java 11+ is installed."
+	exit 1
+fi
+
+if [ "$JAVA_VERSION" -lt 11 ] 2>/dev/null; then
+	echo "Java version $JAVA_VERSION is not supported. Please install Java 11+ and try again."
+	exit 1
+fi
+
+echo "Found Java version $JAVA_VERSION"
 
 # Check if Maven is installed
 MVN=""
