@@ -7,7 +7,8 @@ drop table if exists store_returns;
 
 create table store_returns
 (
-     sr_return_time_sk bigint
+     sr_returned_date_sk bigint
+,     sr_return_time_sk bigint
 ,     sr_item_sk bigint
 ,     sr_customer_sk bigint
 ,     sr_cdemo_sk bigint
@@ -26,7 +27,6 @@ create table store_returns
 ,     sr_reversed_charge decimal(7,2)
 ,     sr_store_credit decimal(7,2)
 ,     sr_net_loss decimal(7,2)
-,     sr_returned_date_sk bigint
 )
 partitioned by spec (sr_returned_date_sk)
 stored by iceberg
