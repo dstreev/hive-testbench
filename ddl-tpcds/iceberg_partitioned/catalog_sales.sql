@@ -7,7 +7,8 @@ drop table if exists catalog_sales;
 
 create table catalog_sales
 (
-     cs_sold_time_sk bigint
+     cs_sold_date_sk bigint
+,    cs_sold_time_sk bigint
 ,     cs_ship_date_sk bigint
 ,     cs_bill_customer_sk bigint
 ,     cs_bill_cdemo_sk bigint
@@ -47,7 +48,8 @@ stored as ${FILE};
 
 insert into catalog_sales
 select
-        cs.cs_sold_time_sk,
+    cs.cs_sold_date_sk,
+    cs.cs_sold_time_sk,
         cs.cs_ship_date_sk,
         cs.cs_bill_customer_sk,
         cs.cs_bill_cdemo_sk,
@@ -80,5 +82,4 @@ select
         cs.cs_net_paid_inc_ship,
         cs.cs_net_paid_inc_ship_tax,
         cs.cs_net_profit,
-        cs.cs_sold_date_sk
 from ${SOURCE}.catalog_sales cs;

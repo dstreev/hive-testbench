@@ -7,7 +7,8 @@ drop table if exists catalog_returns;
 
 create table catalog_returns
 (
-     cr_returned_time_sk bigint
+     cr_returned_date_sk bigint
+,     cr_returned_time_sk bigint
 ,     cr_item_sk bigint
 ,     cr_refunded_customer_sk bigint
 ,     cr_refunded_cdemo_sk bigint
@@ -33,7 +34,6 @@ create table catalog_returns
 ,     cr_reversed_charge decimal(7,2)
 ,     cr_store_credit decimal(7,2)
 ,     cr_net_loss decimal(7,2)
-,     cr_returned_date_sk bigint
 )
 partitioned by spec (cr_returned_date_sk)
 stored by iceberg
@@ -41,6 +41,7 @@ stored as ${FILE};
 
 insert into catalog_returns
 select
+        cr.cr_returned_date_sk,
         cr.cr_returned_time_sk,
         cr.cr_item_sk,
         cr.cr_refunded_customer_sk,
@@ -66,6 +67,5 @@ select
         cr.cr_refunded_cash,
         cr.cr_reversed_charge,
         cr.cr_store_credit,
-        cr.cr_net_loss,
-        cr.cr_returned_date_sk
+        cr.cr_net_loss
 from ${SOURCE}.catalog_returns cr;

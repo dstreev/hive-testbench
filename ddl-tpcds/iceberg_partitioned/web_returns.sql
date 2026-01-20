@@ -7,7 +7,8 @@ drop table if exists web_returns;
 
 create table web_returns
 (
-     wr_returned_time_sk bigint
+    wr_returned_date_sk bigint
+,     wr_returned_time_sk bigint
 ,     wr_item_sk bigint
 ,     wr_refunded_customer_sk bigint
 ,     wr_refunded_cdemo_sk bigint
@@ -37,6 +38,7 @@ stored as ${FILE};
 
 insert into web_returns
 select
+        wr.wr_returned_date_sk,
         wr.wr_returned_time_sk,
         wr.wr_item_sk,
         wr.wr_refunded_customer_sk,
@@ -59,6 +61,5 @@ select
         wr.wr_refunded_cash,
         wr.wr_reversed_charge,
         wr.wr_account_credit,
-        wr.wr_net_loss,
-        wr.wr_returned_date_sk
+        wr.wr_net_loss
 from ${SOURCE}.web_returns wr;
