@@ -39,7 +39,6 @@ create table catalog_sales
 ,     cs_net_paid_inc_ship decimal(7,2)
 ,     cs_net_paid_inc_ship_tax decimal(7,2)
 ,     cs_net_profit decimal(7,2)
-,     cs_sold_date_sk bigint
 )
 stored as ${FILE};
 
@@ -79,6 +78,5 @@ select
         cs.cs_net_paid_inc_tax,
         cs.cs_net_paid_inc_ship,
         cs.cs_net_paid_inc_ship_tax,
-        cs.cs_net_profit,
-        cs.cs_sold_date_sk
+        cs.cs_net_profit
  ;

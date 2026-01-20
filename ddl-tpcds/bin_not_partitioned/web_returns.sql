@@ -29,7 +29,6 @@ create table web_returns
 ,     wr_reversed_charge decimal(7,2)
 ,     wr_account_credit decimal(7,2)
 ,     wr_net_loss decimal(7,2)
-,     wr_returned_date_sk bigint
 )
 stored as ${FILE};
 
@@ -59,6 +58,5 @@ select
         wr.wr_refunded_cash,
         wr.wr_reversed_charge,
         wr.wr_account_credit,
-        wr.wr_net_loss,
-		wr.wr_returned_date_sk
+        wr.wr_net_loss
 ;

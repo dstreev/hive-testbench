@@ -24,8 +24,7 @@ create table store_returns
 ,     sr_refunded_cash decimal(7,2)
 ,     sr_reversed_charge decimal(7,2)
 ,     sr_store_credit decimal(7,2)
-,     sr_net_loss decimal(7,2)
-,     sr_returned_date_sk bigint
+,     sr_net_loss decimal(7,2)t
 )
 stored as ${FILE};
 
@@ -51,6 +50,5 @@ select
         sr.sr_refunded_cash,
         sr.sr_reversed_charge,
         sr.sr_store_credit,
-        sr.sr_net_loss,
-        sr.sr_returned_date_sk
+        sr.sr_net_loss
 ;

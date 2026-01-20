@@ -38,8 +38,7 @@ create table web_sales
     ws_net_paid_inc_tax       decimal(7,2),
     ws_net_paid_inc_ship      decimal(7,2),
     ws_net_paid_inc_ship_tax  decimal(7,2),
-    ws_net_profit             decimal(7,2),
-    ws_sold_date_sk           bigint
+    ws_net_profit             decimal(7,2)
 )
 stored as ${FILE};
 
@@ -79,6 +78,5 @@ select
         ws.ws_net_paid_inc_tax,
         ws.ws_net_paid_inc_ship,
         ws.ws_net_paid_inc_ship_tax,
-        ws.ws_net_profit,
-        ws.ws_sold_date_sk
+        ws.ws_net_profit
 ;

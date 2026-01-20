@@ -32,7 +32,6 @@ create table catalog_returns
 ,     cr_reversed_charge decimal(7,2)
 ,     cr_store_credit decimal(7,2)
 ,     cr_net_loss decimal(7,2)
-,     cr_returned_date_sk bigint
 )
 stored as ${FILE};
 
@@ -65,6 +64,5 @@ select
         cr.cr_refunded_cash,
         cr.cr_reversed_charge,
         cr.cr_store_credit,
-        cr.cr_net_loss,
-        cr.cr_returned_date_sk
+        cr.cr_net_loss
 ;

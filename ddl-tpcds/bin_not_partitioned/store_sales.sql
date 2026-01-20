@@ -28,7 +28,6 @@ create table store_sales
 ,     ss_net_paid decimal(7,2)
 ,     ss_net_paid_inc_tax decimal(7,2)
 ,     ss_net_profit decimal(7,2)
-,     ss_sold_date_sk bigint
 )
 stored as ${FILE};
 
@@ -57,6 +56,5 @@ select
         ss.ss_coupon_amt,
         ss.ss_net_paid,
         ss.ss_net_paid_inc_tax,
-        ss.ss_net_profit,
-        ss.ss_sold_date_sk
+        ss.ss_net_profit
 ;
