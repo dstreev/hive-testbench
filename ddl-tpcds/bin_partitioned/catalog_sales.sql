@@ -46,7 +46,6 @@ stored as ${FILE};
 from ${SOURCE}.catalog_sales cs
 insert overwrite table catalog_sales partition (cs_sold_date_sk) 
 select
-        cs.cs_sold_date_sk,
         cs.cs_sold_time_sk,
         cs.cs_ship_date_sk,
         cs.cs_bill_customer_sk,

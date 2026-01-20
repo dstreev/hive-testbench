@@ -7,8 +7,7 @@ drop table if exists catalog_returns;
 
 create table catalog_returns
 (
-      cr_returned_date_sk bigint
-,     cr_returned_time_sk bigint
+     cr_returned_time_sk bigint
 ,     cr_item_sk bigint
 ,     cr_refunded_customer_sk bigint
 ,     cr_refunded_cdemo_sk bigint
@@ -42,7 +41,6 @@ stored as ${FILE};
 
 insert into catalog_returns
 select
-        cr.cr_returned_date_sk,
         cr.cr_returned_time_sk,
         cr.cr_item_sk,
         cr.cr_refunded_customer_sk,

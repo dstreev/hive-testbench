@@ -7,8 +7,7 @@ drop table if exists web_returns;
 
 create table web_returns
 (
-      wr_returned_date_sk bigint
-,     wr_returned_time_sk bigint
+     wr_returned_time_sk bigint
 ,     wr_item_sk bigint
 ,     wr_refunded_customer_sk bigint
 ,     wr_refunded_cdemo_sk bigint
@@ -31,7 +30,6 @@ create table web_returns
 ,     wr_reversed_charge decimal(7,2)
 ,     wr_account_credit decimal(7,2)
 ,     wr_net_loss decimal(7,2)
-,     wr_returned_date_sk bigint
 )
 partitioned by spec (wr_returned_date_sk)
 stored by iceberg
@@ -39,7 +37,6 @@ stored as ${FILE};
 
 insert into web_returns
 select
-        wr.wr_returned_date_sk,
         wr.wr_returned_time_sk,
         wr.wr_item_sk,
         wr.wr_refunded_customer_sk,

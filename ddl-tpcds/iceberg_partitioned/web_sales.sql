@@ -7,8 +7,7 @@ drop table if exists web_sales;
 
 create table web_sales
 (
-      ws_sold_date_sk bigint
-,     ws_sold_time_sk bigint
+     ws_sold_time_sk bigint
 ,     ws_ship_date_sk bigint
 ,     ws_item_sk bigint
 ,     ws_bill_customer_sk bigint
@@ -41,7 +40,6 @@ create table web_sales
 ,     ws_net_paid_inc_ship decimal(7,2)
 ,     ws_net_paid_inc_ship_tax decimal(7,2)
 ,     ws_net_profit decimal(7,2)
-,     ws_sold_date_sk bigint
 )
 partitioned by spec (ws_sold_date_sk)
 stored by iceberg
@@ -49,7 +47,6 @@ stored as ${FILE};
 
 insert into web_sales
 select
-        ws.ws_sold_date_sk,
         ws.ws_sold_time_sk,
         ws.ws_ship_date_sk,
         ws.ws_item_sk,

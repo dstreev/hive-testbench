@@ -7,8 +7,7 @@ drop table if exists catalog_sales;
 
 create table catalog_sales
 (
-      cs_sold_date_sk bigint
-,     cs_sold_time_sk bigint
+     cs_sold_time_sk bigint
 ,     cs_ship_date_sk bigint
 ,     cs_bill_customer_sk bigint
 ,     cs_bill_cdemo_sk bigint
@@ -41,7 +40,6 @@ create table catalog_sales
 ,     cs_net_paid_inc_ship decimal(7,2)
 ,     cs_net_paid_inc_ship_tax decimal(7,2)
 ,     cs_net_profit decimal(7,2)
-,     cs_sold_date_sk bigint
 )
 partitioned by spec (cs_sold_date_sk)
 stored by iceberg
@@ -49,7 +47,6 @@ stored as ${FILE};
 
 insert into catalog_sales
 select
-        cs.cs_sold_date_sk,
         cs.cs_sold_time_sk,
         cs.cs_ship_date_sk,
         cs.cs_bill_customer_sk,
