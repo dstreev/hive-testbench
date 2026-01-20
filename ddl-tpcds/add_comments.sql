@@ -39,7 +39,7 @@ ALTER TABLE customer CHANGE COLUMN c_birth_year c_birth_year int COMMENT 'Year c
 ALTER TABLE customer CHANGE COLUMN c_birth_country c_birth_country string COMMENT 'Country where customer was born';
 ALTER TABLE customer CHANGE COLUMN c_login c_login string COMMENT 'Customer login username';
 ALTER TABLE customer CHANGE COLUMN c_email_address c_email_address string COMMENT 'Customer email address';
-ALTER TABLE customer CHANGE COLUMN c_last_review_date c_last_review_date string COMMENT 'Date of last customer review';
+ALTER TABLE customer CHANGE COLUMN c_last_review_date_sk c_last_review_date_sk string COMMENT 'Date of last customer review';
 
 -- --------------------------------------------
 -- CUSTOMER_ADDRESS
