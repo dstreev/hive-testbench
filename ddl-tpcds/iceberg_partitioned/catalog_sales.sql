@@ -81,5 +81,5 @@ select
         cs.cs_net_paid_inc_tax,
         cs.cs_net_paid_inc_ship,
         cs.cs_net_paid_inc_ship_tax,
-        cs.cs_net_profit,
+        cs.cs_net_profit
 from ${SOURCE}.catalog_sales cs;
