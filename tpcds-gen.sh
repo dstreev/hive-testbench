@@ -308,6 +308,17 @@ fi
 
 echo ""
 echo "Text data loaded into database tpcds_text_${SCALE}"
+
+# Add table and column comments for agentic SQL generation
+echo "Adding table and column comments..."
+$HIVE -f ddl-tpcds/add_comments.sql --hivevar DB=tpcds_text_${SCALE}
+if [ $? -ne 0 ]; then
+	echo ""
+	echo "WARNING: Failed to add table/column comments."
+	echo "Tables are functional but may lack descriptive metadata."
+	echo ""
+fi
+
 echo ""
 echo "Next step - create optimized tables:"
 echo "  ./tpcds-setup.sh --scale ${SCALE} --dir ${DIR}"

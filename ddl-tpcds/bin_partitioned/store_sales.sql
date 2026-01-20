@@ -5,7 +5,8 @@ drop table if exists store_sales;
 
 create table store_sales
 (
-      ss_sold_time_sk bigint
+    ss_sold_date_sk bigint
+,     ss_sold_time_sk bigint
 ,     ss_item_sk bigint
 ,     ss_customer_sk bigint
 ,     ss_cdemo_sk bigint
@@ -34,6 +35,7 @@ stored as ${FILE};
 from ${SOURCE}.store_sales ss
 insert overwrite table store_sales partition (ss_sold_date_sk) 
 select
+        ss.ss_sold_date_sk,
         ss.ss_sold_time_sk,
         ss.ss_item_sk,
         ss.ss_customer_sk,

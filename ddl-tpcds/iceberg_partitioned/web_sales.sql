@@ -7,7 +7,8 @@ drop table if exists web_sales;
 
 create table web_sales
 (
-      ws_sold_time_sk bigint
+      ws_sold_date_sk bigint
+,     ws_sold_time_sk bigint
 ,     ws_ship_date_sk bigint
 ,     ws_item_sk bigint
 ,     ws_bill_customer_sk bigint
@@ -48,6 +49,7 @@ stored as ${FILE};
 
 insert into web_sales
 select
+        ws.ws_sold_date_sk,
         ws.ws_sold_time_sk,
         ws.ws_ship_date_sk,
         ws.ws_item_sk,

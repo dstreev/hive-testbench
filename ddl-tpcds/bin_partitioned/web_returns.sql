@@ -5,7 +5,8 @@ drop table if exists web_returns;
 
 create table web_returns
 (
-      wr_returned_time_sk bigint
+      wr_returned_date_sk bigint
+,     wr_returned_time_sk bigint
 ,     wr_item_sk bigint
 ,     wr_refunded_customer_sk bigint
 ,     wr_refunded_cdemo_sk bigint
@@ -35,6 +36,7 @@ stored as ${FILE};
 from ${SOURCE}.web_returns wr
 insert overwrite table web_returns partition (wr_returned_date_sk)
 select
+        wr.wr_returned_date_sk,
         wr.wr_returned_time_sk,
         wr.wr_item_sk,
         wr.wr_refunded_customer_sk,

@@ -358,4 +358,14 @@ if [ "$TYPE" != "iceberg" ]; then
 	runcommand "$HIVE -f ddl-tpcds/${DDL_DIR}/add_constraints.sql --hivevar DB=${DATABASE}"
 fi
 
+# Add table and column comments for agentic SQL generation
+echo "Adding table and column comments..."
+runcommand "$HIVE -f ddl-tpcds/add_comments.sql --hivevar DB=${DATABASE}"
+if [ $? -ne 0 ]; then
+	echo ""
+	echo "WARNING: Failed to add table/column comments."
+	echo "Tables are functional but may lack descriptive metadata."
+	echo ""
+fi
+
 echo "Data loaded into database ${DATABASE}."
